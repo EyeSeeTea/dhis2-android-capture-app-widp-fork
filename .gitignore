@@ -83,3 +83,9 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+.DS_Store
+/captures
+.externalNativeBuild
+/app/dhis_keystore.jks
+/app/src/main/res/raw/testing_credentials.json
