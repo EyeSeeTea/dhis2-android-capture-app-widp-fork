@@ -2,8 +2,8 @@ package org.dhis2.usescases.main.program
 
 import androidx.recyclerview.widget.RecyclerView
 import org.dhis2.R
+import org.dhis2.commons.resources.ColorUtils
 import org.dhis2.databinding.ItemProgramModelBinding
-import org.dhis2.utils.ColorUtils
 import org.dhis2.utils.resources.ResourceManager
 
 class ProgramModelHolder(private val binding: ItemProgramModelBinding) :
@@ -15,7 +15,10 @@ class ProgramModelHolder(private val binding: ItemProgramModelBinding) :
 
         val color = ColorUtils.getColorFrom(
             programViewModel.color(),
-            ColorUtils.getPrimaryColor(binding.programImage.context, ColorUtils.ColorType.PRIMARY)
+            ColorUtils.getPrimaryColor(
+                binding.programImage.context,
+                ColorUtils.ColorType.PRIMARY_LIGHT
+            )
         )
 
         binding.programImage.background = ColorUtils.tintDrawableWithColor(

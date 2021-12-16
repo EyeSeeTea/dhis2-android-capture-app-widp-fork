@@ -3,6 +3,9 @@ package org.dhis2.data.forms.dataentry
 import com.nhaarman.mockitokotlin2.doReturn
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.whenever
+import org.dhis2.data.dhislogic.DhisEnrollmentUtils
+import org.dhis2.form.model.ValueStoreResult
+import org.dhis2.utils.reporting.CrashReportController
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.common.ValueType
 import org.hisp.dhis.android.core.dataelement.DataElement
@@ -20,16 +23,50 @@ class ValueStoreTest {
     private lateinit var deValueStore: ValueStore
     private lateinit var dvValueStore: ValueStore
     private val d2: D2 = Mockito.mock(D2::class.java, Mockito.RETURNS_DEEP_STUBS)
+    private val dhisEnrollmentUtils: DhisEnrollmentUtils = DhisEnrollmentUtils(d2)
+    private val crashReportController: CrashReportController = mock()
 
     @Before
     fun setUp() {
-        attrValueStore = ValueStoreImpl(d2, "recordUid", DataEntryStore.EntryMode.ATTR)
-        deValueStore = ValueStoreImpl(d2, "recordUid", DataEntryStore.EntryMode.DE)
-        dvValueStore = ValueStoreImpl(d2, "recordUid", DataEntryStore.EntryMode.DV)
+        attrValueStore =
+            ValueStoreImpl(
+                d2,
+                "recordUid",
+                DataEntryStore.EntryMode.ATTR,
+                dhisEnrollmentUtils,
+                crashReportController
+            )
+        deValueStore =
+            ValueStoreImpl(
+                d2,
+                "recordUid",
+                DataEntryStore.EntryMode.DE,
+                dhisEnrollmentUtils,
+                crashReportController
+            )
+        dvValueStore =
+            ValueStoreImpl(
+                d2,
+                "recordUid",
+                DataEntryStore.EntryMode.DV,
+                dhisEnrollmentUtils,
+                crashReportController
+            )
     }
 
     @Test
     fun `Trying to save an unique attribute should return a valid response`() {
+        mockCheckUniqueFilter()
+
+        val testSubscriber = attrValueStore.save("uid", "uniqueValue").test()
+
+        testSubscriber.assertValueCount(1)
+        testSubscriber.assertValue {
+            it.valueStoreResult == ValueStoreResult.VALUE_NOT_UNIQUE
+        }
+    }
+
+    private fun mockCheckUniqueFilter() {
         whenever(
             d2.trackedEntityModule().trackedEntityAttributes().uid("uid").blockingGet()
         ) doReturn mockedUniqueAttribute()
@@ -39,23 +76,33 @@ class ValueStoreTest {
         ) doReturn mock()
         whenever(
             d2.trackedEntityModule().trackedEntityAttributeValues()
-                .byTrackedEntityAttribute().eq("uid").byValue()
+                .byTrackedEntityAttribute().eq("uid")
+                .byTrackedEntityInstance()
         ) doReturn mock()
         whenever(
             d2.trackedEntityModule().trackedEntityAttributeValues()
-                .byTrackedEntityAttribute().eq("uid").byValue().eq("uniqueValue")
+                .byTrackedEntityAttribute().eq("uid")
+                .byTrackedEntityInstance().neq("recordUid")
         ) doReturn mock()
         whenever(
             d2.trackedEntityModule().trackedEntityAttributeValues()
-                .byTrackedEntityAttribute().eq("uid").byValue().eq("uniqueValue").blockingGet()
+                .byTrackedEntityAttribute().eq("uid")
+                .byTrackedEntityInstance().neq("recordUid")
+                .byValue()
+        ) doReturn mock()
+        whenever(
+            d2.trackedEntityModule().trackedEntityAttributeValues()
+                .byTrackedEntityAttribute().eq("uid")
+                .byTrackedEntityInstance().neq("recordUid")
+                .byValue().eq("uniqueValue")
+        ) doReturn mock()
+        whenever(
+            d2.trackedEntityModule().trackedEntityAttributeValues()
+                .byTrackedEntityAttribute().eq("uid")
+                .byTrackedEntityInstance().neq("recordUid")
+                .byValue().eq("uniqueValue")
+                .blockingGet()
         ) doReturn mockedAttributeValueList()
-
-        val testSubscriber = attrValueStore.save("uid", "uniqueValue").test()
-
-        testSubscriber.assertValueCount(1)
-        testSubscriber.assertValue {
-            it.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_NOT_UNIQUE
-        }
     }
 
     @Test
@@ -84,7 +131,7 @@ class ValueStoreTest {
 
         testSubscriber.assertValueCount(1)
         testSubscriber.assertValue {
-            it.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_CHANGED
+            it.valueStoreResult == ValueStoreResult.VALUE_CHANGED
         }
     }
 
@@ -98,7 +145,7 @@ class ValueStoreTest {
 
         testSubscriber.assertValueCount(1)
         testSubscriber.assertValue {
-            it.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_CHANGED
+            it.valueStoreResult == ValueStoreResult.VALUE_CHANGED
         }
     }
 
@@ -130,7 +177,7 @@ class ValueStoreTest {
 
         testSubscriber.assertValueCount(1)
         testSubscriber.assertValue {
-            it.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_CHANGED
+            it.valueStoreResult == ValueStoreResult.VALUE_CHANGED
         }
     }
 
@@ -147,7 +194,7 @@ class ValueStoreTest {
 
         testSubscriber.assertValueCount(1)
         testSubscriber.assertValue {
-            it.valueStoreResult == ValueStoreImpl.ValueStoreResult.UID_IS_NOT_DE_OR_ATTR
+            it.valueStoreResult == ValueStoreResult.UID_IS_NOT_DE_OR_ATTR
         }
     }
 
@@ -194,7 +241,7 @@ class ValueStoreTest {
             "fieldUid",
             "optionUid"
         )
-        assert(storeResult.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_CHANGED)
+        assert(storeResult.valueStoreResult == ValueStoreResult.VALUE_CHANGED)
     }
 
     @Test
@@ -219,7 +266,7 @@ class ValueStoreTest {
         ) doReturn false
         val storeResult = deValueStore.deleteOptionValueIfSelected("fieldUid", "optionUid")
         assert(
-            storeResult.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_HAS_NOT_CHANGED
+            storeResult.valueStoreResult == ValueStoreResult.VALUE_HAS_NOT_CHANGED
         )
     }
 
@@ -248,7 +295,7 @@ class ValueStoreTest {
             .test()
             .assertNoErrors()
             .assertValue { result ->
-                result.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_HAS_NOT_CHANGED
+                result.valueStoreResult == ValueStoreResult.VALUE_HAS_NOT_CHANGED
             }
     }
 
@@ -286,31 +333,31 @@ class ValueStoreTest {
             .test()
             .assertNoErrors()
             .assertValue { result ->
-                result.valueStoreResult == ValueStoreImpl.ValueStoreResult.VALUE_HAS_NOT_CHANGED
+                result.valueStoreResult == ValueStoreResult.VALUE_HAS_NOT_CHANGED
             }
     }
 
-    fun mockedAttribute(): TrackedEntityAttribute {
+    private fun mockedAttribute(): TrackedEntityAttribute {
         return TrackedEntityAttribute.builder()
             .uid("uid")
             .build()
     }
 
-    fun mockedDataElement(): DataElement {
+    private fun mockedDataElement(): DataElement {
         return DataElement.builder()
             .uid("uid")
             .valueType(ValueType.TEXT)
             .build()
     }
 
-    fun mockedUniqueAttribute(): TrackedEntityAttribute {
+    private fun mockedUniqueAttribute(): TrackedEntityAttribute {
         return TrackedEntityAttribute.builder()
             .uid("uid")
             .unique(true)
             .build()
     }
 
-    fun mockedDataElementValue(): TrackedEntityDataValue {
+    private fun mockedDataElementValue(): TrackedEntityDataValue {
         return TrackedEntityDataValue.builder()
             .dataElement("uid")
             .event("recordUid")

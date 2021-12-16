@@ -5,32 +5,28 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
-import android.text.TextUtils.isEmpty
-import android.view.LayoutInflater
 import android.view.View
+import android.widget.EditText
 import android.widget.Toast
 import androidx.databinding.DataBindingUtil
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import com.crashlytics.android.Crashlytics
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import io.reactivex.Flowable
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 import javax.inject.Inject
 import org.dhis2.App
-import org.dhis2.Bindings.isKeyboardOpened
 import org.dhis2.R
-import org.dhis2.data.forms.dataentry.DataEntryAdapter
-import org.dhis2.data.forms.dataentry.DataEntryArguments
-import org.dhis2.data.forms.dataentry.DataEntryHeaderHelper
-import org.dhis2.data.forms.dataentry.fields.FieldViewModel
-import org.dhis2.data.forms.dataentry.fields.RowAction
+import org.dhis2.commons.dialogs.AlertBottomDialog
+import org.dhis2.data.forms.dataentry.FormView
 import org.dhis2.data.forms.dataentry.fields.display.DisplayViewModel
+import org.dhis2.data.location.LocationProvider
 import org.dhis2.databinding.EnrollmentActivityBinding
+import org.dhis2.form.data.FormRepository
+import org.dhis2.form.data.GeometryController
+import org.dhis2.form.data.GeometryParserImpl
+import org.dhis2.form.model.DispatcherProvider
+import org.dhis2.form.model.FieldUiModel
 import org.dhis2.uicomponents.map.views.MapSelectorActivity
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureActivity
 import org.dhis2.usescases.eventsWithoutRegistration.eventInitial.EventInitialActivity
@@ -41,17 +37,15 @@ import org.dhis2.utils.Constants.CAMERA_REQUEST
 import org.dhis2.utils.Constants.ENROLLMENT_UID
 import org.dhis2.utils.Constants.GALLERY_REQUEST
 import org.dhis2.utils.Constants.PROGRAM_UID
-import org.dhis2.utils.Constants.RQ_QR_SCANNER
 import org.dhis2.utils.Constants.TEI_UID
 import org.dhis2.utils.EventMode
 import org.dhis2.utils.FileResourcesUtil
 import org.dhis2.utils.ImageUtils
-import org.dhis2.utils.customviews.AlertBottomDialog
+import org.dhis2.utils.RulesUtilsProviderConfigurationError
 import org.dhis2.utils.customviews.ImageDetailBottomDialog
+import org.dhis2.utils.toMessage
 import org.hisp.dhis.android.core.arch.helpers.FileResourceDirectoryHelper
-import org.hisp.dhis.android.core.arch.helpers.GeometryHelper
 import org.hisp.dhis.android.core.common.FeatureType
-import org.hisp.dhis.android.core.common.Geometry
 import org.hisp.dhis.android.core.enrollment.EnrollmentStatus
 
 class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
@@ -59,9 +53,19 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
     enum class EnrollmentMode { NEW, CHECK }
 
     private var forRelationship: Boolean = false
+    private lateinit var formView: FormView
 
     @Inject
     lateinit var presenter: EnrollmentPresenterImpl
+
+    @Inject
+    lateinit var formRepository: FormRepository
+
+    @Inject
+    lateinit var locationProvider: LocationProvider
+
+    @Inject
+    lateinit var dispatchers: DispatcherProvider
 
     lateinit var binding: EnrollmentActivityBinding
     lateinit var mode: EnrollmentMode
@@ -95,21 +99,39 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
         }
     }
 
-    private lateinit var adapter: DataEntryAdapter
-    private lateinit var dataEntryHeaderHelper: DataEntryHeaderHelper
-
     /*region LIFECYCLE*/
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        val enrollmentUid = intent.getStringExtra(ENROLLMENT_UID_EXTRA) ?: ""
+        val programUid = intent.getStringExtra(PROGRAM_UID_EXTRA) ?: ""
+        val enrollmentMode = intent.getStringExtra(MODE_EXTRA)?.let { EnrollmentMode.valueOf(it) }
+            ?: EnrollmentMode.NEW
         (applicationContext as App).userComponent()!!.plus(
             EnrollmentModule(
                 this,
-                intent.getStringExtra(ENROLLMENT_UID_EXTRA),
-                intent.getStringExtra(PROGRAM_UID_EXTRA),
-                EnrollmentMode.valueOf(intent.getStringExtra(MODE_EXTRA))
+                enrollmentUid,
+                programUid,
+                enrollmentMode,
+                context
             )
         ).inject(this)
+
+        formView = FormView.Builder()
+            .persistence(formRepository)
+            .locationProvider(locationProvider)
+            .dispatcher(dispatchers)
+            .onItemChangeListener { presenter.updateFields() }
+            .onLoadingListener { loading ->
+                if (loading) {
+                    showProgress()
+                } else {
+                    hideProgress()
+                }
+            }
+            .factory(supportFragmentManager)
+            .build()
+
+        super.onCreate(savedInstanceState)
 
         if (presenter.getEnrollment() == null ||
             presenter.getEnrollment()?.trackedEntityInstance() == null
@@ -121,28 +143,11 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
         binding = DataBindingUtil.setContentView(this, R.layout.enrollment_activity)
         binding.view = this
 
-        mode = EnrollmentMode.valueOf(intent.getStringExtra(MODE_EXTRA))
+        mode = enrollmentMode
 
-        adapter = DataEntryAdapter(
-            LayoutInflater.from(this),
-            supportFragmentManager,
-            DataEntryArguments.forEnrollment(intent.getStringExtra(ENROLLMENT_UID_EXTRA))
-        )
-        dataEntryHeaderHelper = DataEntryHeaderHelper(
-            binding.headerContainer, binding.fieldRecycler
-        )
-        dataEntryHeaderHelper.observeHeaderChanges(this)
-        binding.fieldRecycler.addOnScrollListener(object :
-                RecyclerView.OnScrollListener() {
-                override fun onScrolled(
-                    recyclerView: RecyclerView,
-                    dx: Int,
-                    dy: Int
-                ) {
-                    dataEntryHeaderHelper.checkSectionHeader(recyclerView)
-                }
-            })
-        binding.fieldRecycler.adapter = adapter
+        val fragmentTransaction = supportFragmentManager.beginTransaction()
+        fragmentTransaction.replace(R.id.formViewContainer, formView)
+        fragmentTransaction.commit()
 
         binding.save.setOnClickListener {
             performSaveClick()
@@ -165,12 +170,14 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
         if (resultCode == Activity.RESULT_OK) {
             when (requestCode) {
                 RQ_INCIDENT_GEOMETRY, RQ_ENROLLMENT_GEOMETRY -> {
-                    handleGeometry(
-                        FeatureType.valueOfFeatureType(
-                            data!!.getStringExtra(MapSelectorActivity.LOCATION_TYPE_EXTRA)
-                        ),
-                        data.getStringExtra(MapSelectorActivity.DATA_EXTRA), requestCode
-                    )
+                    if (data?.hasExtra(MapSelectorActivity.DATA_EXTRA) == true) {
+                        handleGeometry(
+                            FeatureType.valueOfFeatureType(
+                                data.getStringExtra(MapSelectorActivity.LOCATION_TYPE_EXTRA)
+                            ),
+                            data.getStringExtra(MapSelectorActivity.DATA_EXTRA)!!, requestCode
+                        )
+                    }
                 }
                 GALLERY_REQUEST -> {
                     try {
@@ -199,27 +206,16 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
                         presenter.saveFile(uuid, if (file.exists()) file.path else null)
                         presenter.updateFields()
                     } catch (e: Exception) {
-                        Crashlytics.logException(e)
+                        crashReportController.logException(e)
                         Toast.makeText(
                             this, getString(R.string.something_wrong), Toast.LENGTH_LONG
                         ).show()
                     }
                 }
-                RQ_QR_SCANNER -> {
-                    scanTextView.updateScanResult(data!!.getStringExtra(Constants.EXTRA_DATA))
-                }
                 RQ_EVENT -> openDashboard(presenter.getEnrollment()!!.uid()!!)
             }
         }
         super.onActivityResult(requestCode, resultCode, data)
-    }
-
-    override fun sectionFlowable(): Flowable<String> {
-        return adapter.sectionFlowable()
-    }
-
-    override fun setSelectedSection(selectedSection: String) {
-        adapter.setCurrentSection(selectedSection)
     }
 
     override fun openEvent(eventUid: String) {
@@ -231,7 +227,7 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
                 presenter.getEnrollment()!!.trackedEntityInstance(),
                 null,
                 presenter.getEnrollment()!!.organisationUnit(),
-                null,
+                presenter.getEventStage(eventUid),
                 presenter.getEnrollment()!!.uid(),
                 0,
                 presenter.getEnrollment()!!.status()
@@ -271,10 +267,6 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
         }
     }
 
-    override fun rowActions(): Flowable<RowAction> {
-        return adapter.asFlowable()
-    }
-
     override fun showMissingMandatoryFieldsMessage(
         emptyMandatoryFields: MutableMap<String, String>
     ) {
@@ -294,17 +286,12 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
     }
 
     override fun goBack() {
-        hideKeyboard()
-        attemptFinish()
+        onBackPressed()
     }
 
     override fun onBackPressed() {
-        if (!isKeyboardOpened()) {
-            attemptFinish()
-        } else {
-            currentFocus?.apply { clearFocus() }
-            hideKeyboard()
-        }
+        formView.onEditionFinish()
+        attemptFinish()
     }
 
     private fun attemptFinish() {
@@ -328,22 +315,10 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
     }
 
     private fun handleGeometry(featureType: FeatureType, dataExtra: String, requestCode: Int) {
-        val geometry: Geometry? =
-            when (featureType) {
-                FeatureType.POINT -> {
-                    val type = object : TypeToken<List<Double>>() {}.type
-                    GeometryHelper.createPointGeometry(Gson().fromJson(dataExtra, type))
-                }
-                FeatureType.POLYGON -> {
-                    val type = object : TypeToken<List<List<List<Double>>>>() {}.type
-                    GeometryHelper.createPolygonGeometry(Gson().fromJson(dataExtra, type))
-                }
-                FeatureType.MULTI_POLYGON -> {
-                    val type = object : TypeToken<List<List<List<List<Double>>>>>() {}.type
-                    GeometryHelper.createMultiPolygonGeometry(Gson().fromJson(dataExtra, type))
-                }
-                else -> null
-            }
+        val geometry = GeometryController(GeometryParserImpl()).generateLocationFromCoordinates(
+            featureType,
+            dataExtra
+        )
 
         if (geometry != null) {
             when (requestCode) {
@@ -438,30 +413,12 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
     /*endregion*/
 
     /*region DATA ENTRY*/
-    override fun showFields(fields: List<FieldViewModel>) {
-        if (!isEmpty(presenter.getLastFocusItem())) {
-            adapter.setLastFocusItem(presenter.getLastFocusItem())
-        }
-
+    override fun showFields(fields: List<FieldUiModel>) {
         fields.filter {
             it !is DisplayViewModel
         }
 
-        val myLayoutManager: LinearLayoutManager =
-            binding.fieldRecycler.layoutManager as LinearLayoutManager
-
-        val myFirstPositionIndex = myLayoutManager.findFirstVisibleItemPosition()
-        val myFirstPositionView = myLayoutManager.findViewByPosition(myFirstPositionIndex)
-
-        var offset = 0
-        myFirstPositionView?.let {
-            offset = it.top
-        }
-
-        adapter.swap(fields) {
-            dataEntryHeaderHelper.onItemsUpdatedCallback()
-        }
-        myLayoutManager.scrollToPositionWithOffset(myFirstPositionIndex, offset)
+        formView.render(fields)
     }
 
     /*endregion*/
@@ -478,8 +435,13 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
     }
 
     override fun performSaveClick() {
-        if (presenter.dataIntegrityCheck()) {
-            presenter.finish(mode)
+        if (currentFocus is EditText) {
+            presenter.setFinishing()
+            currentFocus?.apply { clearFocus() }
+        } else {
+            if (!presenter.hasAccess() || presenter.dataIntegrityCheck()) {
+                presenter.finish(mode)
+            }
         }
     }
 
@@ -493,5 +455,28 @@ class EnrollmentActivity : ActivityGlobalAbstract(), EnrollmentView {
         runOnUiThread {
             binding.toolbarProgress.hide()
         }
+    }
+
+    override fun showDateEditionWarning() {
+        val dialog = MaterialAlertDialogBuilder(this, R.style.DhisMaterialDialog)
+            .setMessage(R.string.enrollment_date_edition_warning)
+            .setPositiveButton(R.string.button_ok, null)
+        dialog.show()
+    }
+
+    override fun displayConfigurationErrors(
+        configurationError: List<RulesUtilsProviderConfigurationError>
+    ) {
+        MaterialAlertDialogBuilder(this, R.style.DhisMaterialDialog)
+            .setTitle(R.string.warning_error_on_complete_title)
+            .setMessage(configurationError.toMessage(this))
+            .setPositiveButton(
+                R.string.action_close
+            ) { _, _ -> }
+            .setNegativeButton(
+                getString(R.string.action_do_not_show_again)
+            ) { _, _ -> presenter.disableConfErrorMessage() }
+            .setCancelable(false)
+            .show()
     }
 }

@@ -6,10 +6,10 @@ import androidx.recyclerview.widget.RecyclerView
 import java.util.Locale
 import org.dhis2.Bindings.setTeiImage
 import org.dhis2.R
+import org.dhis2.commons.resources.ColorUtils
 import org.dhis2.databinding.ItemCarouselEventBinding
 import org.dhis2.uicomponents.map.model.EventUiComponentModel
 import org.dhis2.usescases.searchTrackEntity.adapters.SearchTeiModel
-import org.dhis2.utils.ColorUtils
 import org.dhis2.utils.DateUtils
 import org.dhis2.utils.resources.ResourceManager
 import org.hisp.dhis.android.core.program.Program
@@ -19,7 +19,8 @@ class CarouselEventHolder(
     val binding: ItemCarouselEventBinding,
     val program: Program?,
     val onClick: (teiUid: String?, enrollmentUid: String?, eventUid: String?) -> Boolean,
-    private val profileImagePreviewCallback: (String) -> Unit
+    private val profileImagePreviewCallback: (String) -> Unit,
+    val onNavigate: (teiUid: String) -> Unit
 ) :
     RecyclerView.ViewHolder(binding.root),
     CarouselBinder<EventUiComponentModel> {
@@ -77,6 +78,10 @@ class CarouselEventHolder(
         } else {
             binding.noCoordinatesLabel.root.visibility = View.GONE
         }
+
+        binding.mapNavigateFab.setOnClickListener {
+            onNavigate(data.eventUid)
+        }
     }
 
     private fun setStageStyle(color: String?, icon: String?, target: ImageView) {
@@ -100,5 +105,13 @@ class CarouselEventHolder(
             )
             setColorFilter(ColorUtils.getContrastColor(stageColor))
         }
+    }
+
+    override fun showNavigateButton() {
+        binding.mapNavigateFab.show()
+    }
+
+    override fun hideNavigateButton() {
+        binding.mapNavigateFab.hide()
     }
 }
