@@ -12,17 +12,27 @@ import com.mapbox.mapboxsdk.camera.CameraUpdateFactory
 import com.mapbox.mapboxsdk.geometry.LatLng
 import com.mapbox.mapboxsdk.geometry.LatLngBounds
 import com.mapbox.mapboxsdk.maps.MapboxMap
+import org.dhis2.uicomponents.map.geometry.bound.GetBoundingBox
 
-fun MapboxMap.initCameraToViewAllElements(context: Context, bounds: LatLngBounds) {
+const val DEFAULT_BOUND_PADDING = 50
+const val DEFAULT_EASE_CAMERA_ANIM_DURATION = 1200
+
+fun MapboxMap.initCameraToViewAllElements(context: Context?, bounds: LatLngBounds) {
     if (bounds.latNorth == 0.0 && bounds.latSouth == 0.0 &&
         bounds.lonEast == 0.0 && bounds.lonWest == 0.0
     ) {
         this.cameraPosition = CameraPosition.Builder()
             .zoom(2.0)
             .build()
-        Toast.makeText(context, "No data to load on map", LENGTH_LONG).show()
+        context?.let { Toast.makeText(context, "No data to load on map", LENGTH_LONG).show() }
     } else {
-        this.easeCamera(CameraUpdateFactory.newLatLngBounds(bounds, 50), 1200)
+        this.easeCamera(
+            CameraUpdateFactory.newLatLngBounds(
+                bounds,
+                DEFAULT_BOUND_PADDING
+            ),
+            DEFAULT_EASE_CAMERA_ANIM_DURATION
+        )
     }
 }
 
@@ -46,6 +56,26 @@ fun MapboxMap.moveCameraToPosition(latLng: LatLng) {
         .zoom(15.0)
         .build()
     this.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
+}
+
+fun MapboxMap.moveCameraToDevicePosition(latLng: LatLng) {
+    this.easeCamera(
+        CameraUpdateFactory.newLatLng(
+            LatLng(
+                latLng.latitude,
+                latLng.longitude
+            )
+        )
+    )
+    val cameraPosition = CameraPosition.Builder()
+        .target(
+            LatLng(
+                latLng.latitude,
+                latLng.longitude
+            )
+        )
+        .build()
+    this.easeCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
 }
 
 fun MapboxMap.centerCameraOnFeature(feature: Feature) {
@@ -75,4 +105,39 @@ fun MapboxMap.centerCameraOnFeature(feature: Feature) {
             this.easeCamera(CameraUpdateFactory.newLatLng(boundsBuilder.build().center))
         }
     }
+}
+
+fun MapboxMap.centerCameraOnFeatures(features: List<Feature>) {
+    val latLongs = mutableListOf<LatLng>().apply {
+        features.forEach {
+            addAll(
+                when (val geometry = it.geometry()) {
+                    is Point -> arrayListOf(LatLng(geometry.latitude(), geometry.longitude()))
+                    is Polygon -> geometry.coordinates()[0].map { point ->
+                        LatLng(
+                            point.latitude(),
+                            point.longitude()
+                        )
+                    }
+                    is LineString -> geometry.coordinates().map { point ->
+                        LatLng(
+                            point.latitude(),
+                            point.longitude()
+                        )
+                    }
+                    else -> emptyList<LatLng>()
+                }
+            )
+        }
+    }
+    val bbox = GetBoundingBox().getEnclosingBoundingBox(latLongs)
+    val bounds = LatLngBounds.Builder()
+        .include(pointToLatLn(bbox.northeast()))
+        .include(pointToLatLn(bbox.southwest()))
+        .build()
+    initCameraToViewAllElements(null, bounds)
+}
+
+fun pointToLatLn(point: Point): LatLng {
+    return LatLng(point.latitude(), point.longitude())
 }

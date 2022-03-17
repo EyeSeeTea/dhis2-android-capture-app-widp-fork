@@ -23,9 +23,9 @@ import java.io.File
 import java.util.ArrayList
 import java.util.Date
 import org.dhis2.R
+import org.dhis2.commons.resources.ColorUtils
 import org.dhis2.databinding.ItemFieldValueBinding
 import org.dhis2.usescases.searchTrackEntity.adapters.SearchTeiModel
-import org.dhis2.utils.ColorUtils
 import org.dhis2.utils.resources.ResourceManager
 import org.hisp.dhis.android.core.enrollment.Enrollment
 import org.hisp.dhis.android.core.enrollment.EnrollmentStatus
@@ -244,6 +244,7 @@ fun LinkedHashMap<String, TrackedEntityAttributeValue>.setAttributeList(
     listIsOpen: Boolean,
     sortingKey: String?,
     sortingValue: String?,
+    orgUnit: String,
     showList: () -> Unit
 ) {
     parentLayout.removeAllViews()
@@ -259,27 +260,34 @@ fun LinkedHashMap<String, TrackedEntityAttributeValue>.setAttributeList(
             itemFieldValueBinding.root.tag = adapterPosition.toString() + "_" + fieldName
             parentLayout.addView(itemFieldValueBinding.root)
         }
+        val orgUnitKey = parentLayout.context.getString(R.string.enrolled_in)
+        val itemFieldValueBinding =
+            ItemFieldValueBinding.inflate(LayoutInflater.from(parentLayout.context))
+        itemFieldValueBinding.name = orgUnitKey
+        itemFieldValueBinding.value = orgUnit
+        itemFieldValueBinding.root.tag = adapterPosition.toString() + "_" + orgUnitKey
+        parentLayout.addView(itemFieldValueBinding.root)
         if (sortingKey != null) {
-            val itemFieldValueBinding =
+            val binding =
                 ItemFieldValueBinding.inflate(LayoutInflater.from(parentLayout.context))
-            itemFieldValueBinding.name = sortingKey
-            itemFieldValueBinding.fieldName.setTextColor(
+            binding.name = sortingKey
+            binding.fieldName.setTextColor(
                 ResourcesCompat.getColor(
-                    itemFieldValueBinding.fieldName.context.resources,
+                    binding.fieldName.context.resources,
                     R.color.sorting_attribute_key_color,
                     null
                 )
             )
-            itemFieldValueBinding.value = sortingValue
-            itemFieldValueBinding.fieldValue.setTextColor(
+            binding.value = sortingValue
+            binding.fieldValue.setTextColor(
                 ResourcesCompat.getColor(
-                    itemFieldValueBinding.fieldValue.context.resources,
+                    binding.fieldValue.context.resources,
                     R.color.sorting_attribute_value_color,
                     null
                 )
             )
-            itemFieldValueBinding.root.tag = adapterPosition.toString() + "_" + sortingValue
-            parentLayout.addView(itemFieldValueBinding.root)
+            binding.root.tag = adapterPosition.toString() + "_" + sortingValue
+            parentLayout.addView(binding.root)
         }
         showAttributesButton.scaleY = if (listIsOpen) -1F else 1F
         showAttributesButton.setOnClickListener {

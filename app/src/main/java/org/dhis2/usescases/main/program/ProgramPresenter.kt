@@ -2,36 +2,38 @@ package org.dhis2.usescases.main.program
 
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.processors.PublishProcessor
-import org.dhis2.data.prefs.PreferenceProvider
-import org.dhis2.data.schedulers.SchedulerProvider
-import org.dhis2.data.tuples.Pair
+import org.dhis2.commons.prefs.PreferenceProvider
+import org.dhis2.commons.schedulers.SchedulerProvider
 import org.dhis2.utils.Constants.PROGRAM_THEME
+import org.dhis2.utils.analytics.matomo.Actions.Companion.SYNC_BTN
+import org.dhis2.utils.analytics.matomo.Categories.Companion.HOME
+import org.dhis2.utils.analytics.matomo.Labels.Companion.CLICK_ON
+import org.dhis2.utils.analytics.matomo.MatomoAnalyticsController
 import org.dhis2.utils.filters.FilterManager
 import timber.log.Timber
 
 class ProgramPresenter internal constructor(
     private val view: ProgramView,
-    private val homeRepository: HomeRepository,
+    private val programRepository: ProgramRepository,
     private val schedulerProvider: SchedulerProvider,
     private val preferenceProvider: PreferenceProvider,
-    private val filterManager: FilterManager
+    private val filterManager: FilterManager,
+    private val matomoAnalyticsController: MatomoAnalyticsController
 ) {
 
     var disposable: CompositeDisposable = CompositeDisposable()
 
     fun init() {
-        FilterManager.getInstance().clearTextValues()
-
         val applyFiler = PublishProcessor.create<FilterManager>()
 
         disposable.add(
             applyFiler
                 .switchMap {
-                    homeRepository.programModels().onErrorReturn {
+                    programRepository.programModels().onErrorReturn {
                         arrayListOf()
                     }
                         .mergeWith(
-                            homeRepository.aggregatesModels().onErrorReturn {
+                            programRepository.aggregatesModels().onErrorReturn {
                                 arrayListOf()
                             }
                         )
@@ -76,6 +78,8 @@ class ProgramPresenter internal constructor(
     }
 
     fun onSyncStatusClick(program: ProgramViewModel) {
+        val programTitle = "$CLICK_ON${program.title()}"
+        matomoAnalyticsController.trackEvent(HOME, SYNC_BTN, programTitle)
         view.showSyncDialog(program)
     }
 

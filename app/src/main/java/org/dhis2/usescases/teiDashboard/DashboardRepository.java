@@ -28,10 +28,6 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.functions.Consumer;
 
-/**
- * QUADRAM. Created by ppajuelo on 30/11/2017.
- */
-
 public interface DashboardRepository {
 
     Observable<List<ProgramStage>> getProgramStages(String programStages);
@@ -62,6 +58,8 @@ public interface DashboardRepository {
 
     Observable<CategoryCombo> catComboForProgram(String program);
 
+    boolean isStageFromProgram(String stageUid);
+
     Observable<List<CategoryOptionCombo>> catOptionCombos(String catComboUid);
 
     void setDefaultCatOptCombToEvent(String eventUid);
@@ -83,11 +81,13 @@ public interface DashboardRepository {
 
     Single<Boolean> deleteEnrollmentIfPossible(String enrollmentUid);
 
-    Flowable<List<RelationshipViewModel>> listTeiRelationships();
-
     Single<Integer> getNoteCount();
 
     EnrollmentStatus getEnrollmentStatus(String enrollmentUid);
 
     Observable<StatusChangeResultCode> updateEnrollmentStatus(String enrollmentUid, EnrollmentStatus status);
+
+    boolean programHasRelationships();
+
+    boolean programHasAnalytics();
 }

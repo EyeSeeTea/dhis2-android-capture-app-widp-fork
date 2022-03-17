@@ -31,6 +31,7 @@ class TrackerFilterSearchHelper @Inject constructor(
         repository: TrackedEntityInstanceQueryCollectionRepository
     ): TrackedEntityInstanceQueryCollectionRepository {
         return repository
+            .withFilter { applyWorkingList(it) }
             .withFilter { applyEnrollmentStatusFilter(it) }
             .withFilter { applyEventStatusFilter(it) }
             .withFilter { applyOrgUnitFilter(it) }
@@ -38,7 +39,25 @@ class TrackerFilterSearchHelper @Inject constructor(
             .withFilter { applyDateFilter(it) }
             .withFilter { applyEnrollmentDateFilter(it) }
             .withFilter { applyAssignedToMeFilter(it) }
+            .withFilter { applyFollowUpFilter(it) }
             .withFilter { applySorting(it) }
+    }
+
+    private fun applyWorkingList(
+        teiQuery: TrackedEntityInstanceQueryCollectionRepository
+    ): TrackedEntityInstanceQueryCollectionRepository {
+        return if (filterManager.workingListActive()) {
+            filterRepository.applyWorkingList(
+                teiQuery,
+                filterManager.currentWorkingList()
+            ).also {
+                filterManager.setWorkingListScope(
+                    it.scope.mapToWorkingListScope(filterRepository.resources)
+                )
+            }
+        } else {
+            teiQuery
+        }
     }
 
     private fun applyEnrollmentStatusFilter(
@@ -121,6 +140,16 @@ class TrackerFilterSearchHelper @Inject constructor(
     ): TrackedEntityInstanceQueryCollectionRepository {
         return if (filterManager.assignedFilter) {
             filterRepository.applyAssignToMe(teiQuery)
+        } else {
+            teiQuery
+        }
+    }
+
+    private fun applyFollowUpFilter(
+        teiQuery: TrackedEntityInstanceQueryCollectionRepository
+    ): TrackedEntityInstanceQueryCollectionRepository {
+        return if (filterManager.followUpFilter) {
+            filterRepository.applyFollowUp(teiQuery)
         } else {
             teiQuery
         }

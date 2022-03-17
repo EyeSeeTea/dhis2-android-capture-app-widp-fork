@@ -1,53 +1,85 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventCapture;
 
-import android.content.Context;
+import android.os.Bundle;
 
-import org.dhis2.R;
-import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureFragment.EventCaptureFormFragment;
-import org.dhis2.usescases.notes.NotesFragment;
-
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentStatePagerAdapter;
+import androidx.fragment.app.FragmentActivity;
+import androidx.viewpager2.adapter.FragmentStateAdapter;
 
-/**
- * QUADRAM. Created by ppajuelo on 19/11/2018.
- */
-public class EventCapturePagerAdapter extends FragmentStatePagerAdapter {
+import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.eventCaptureFragment.EventCaptureFormFragment;
+import org.dhis2.usescases.notes.NotesFragment;
+import org.dhis2.usescases.teiDashboard.dashboardfragments.indicators.IndicatorsFragment;
+import org.dhis2.usescases.teiDashboard.dashboardfragments.indicators.VisualizationType;
+import org.dhis2.usescases.teiDashboard.dashboardfragments.relationships.RelationshipFragment;
 
-    private final Context context;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.dhis2.usescases.teiDashboard.dashboardfragments.indicators.IndicatorsFragmentKt.VISUALIZATION_TYPE;
+
+public class EventCapturePagerAdapter extends FragmentStateAdapter {
+
     private final String programUid;
     private final String eventUid;
+    private List<EventPageType> pages;
 
-    public EventCapturePagerAdapter(FragmentManager fm, Context context,String programUid, String eventUid) {
-        super(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
-        this.context = context;
-        this.programUid = programUid;
-        this.eventUid = eventUid;
+    private enum EventPageType {
+        DATA_ENTRY, ANALYTICS, RELATIONSHIPS, NOTES
     }
 
+    public EventCapturePagerAdapter(FragmentActivity fragmentActivity,
+                                    String programUid,
+                                    String eventUid,
+                                    boolean displayAnalyticScreen,
+                                    boolean displayRelationshipScreen
+
+    ) {
+        super(fragmentActivity);
+        this.programUid = programUid;
+        this.eventUid = eventUid;
+        pages = new ArrayList<>();
+        pages.add(EventPageType.DATA_ENTRY);
+        if (displayAnalyticScreen) {
+            pages.add(EventPageType.ANALYTICS);
+        }
+        if (displayRelationshipScreen) {
+            pages.add(EventPageType.RELATIONSHIPS);
+        }
+        pages.add(EventPageType.NOTES);
+
+    }
+
+    @NonNull
     @Override
-    public Fragment getItem(int position) {
-        switch (position) {
+    public Fragment createFragment(int position) {
+        switch (pages.get(position)) {
             default:
+            case DATA_ENTRY:
                 return EventCaptureFormFragment.newInstance(eventUid);
-            case 1:
+            case ANALYTICS:
+                Fragment indicatorFragment = new IndicatorsFragment();
+                Bundle arguments = new Bundle();
+                arguments.putString(VISUALIZATION_TYPE, VisualizationType.EVENTS.name());
+                indicatorFragment.setArguments(arguments);
+                return indicatorFragment;
+            case RELATIONSHIPS:
+                Fragment relationshipFragment = new RelationshipFragment();
+                relationshipFragment.setArguments(
+                        RelationshipFragment.withArguments(programUid,
+                                null,
+                                null,
+                                eventUid
+                        )
+                );
+                return relationshipFragment;
+            case NOTES:
                 return NotesFragment.newEventInstance(programUid, eventUid);
         }
     }
 
     @Override
-    public int getCount() {
-        return 2; //TODO: ADD OVERVIEW, INDICATORS
-    }
-
-    @Override
-    public CharSequence getPageTitle(int position) {
-        switch (position) {
-            default:
-                return context.getString(R.string.event_data);
-            case 1:
-                return context.getString(R.string.event_notes);
-        }
+    public int getItemCount() {
+        return pages.size();
     }
 }

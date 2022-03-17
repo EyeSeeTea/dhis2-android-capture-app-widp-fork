@@ -3,31 +3,42 @@ package org.dhis2.usescases.enrollment
 import android.content.Context
 import dagger.Module
 import dagger.Provides
+import io.reactivex.processors.FlowableProcessor
+import io.reactivex.processors.PublishProcessor
 import org.dhis2.Bindings.valueTypeHintMap
 import org.dhis2.R
-import org.dhis2.data.dagger.PerActivity
+import org.dhis2.commons.di.dagger.PerActivity
+import org.dhis2.commons.schedulers.SchedulerProvider
+import org.dhis2.data.dhislogic.DhisEnrollmentUtils
 import org.dhis2.data.forms.RulesRepository
-import org.dhis2.data.forms.dataentry.DataEntryRepository
 import org.dhis2.data.forms.dataentry.DataEntryStore
 import org.dhis2.data.forms.dataentry.EnrollmentRepository
+import org.dhis2.data.forms.dataentry.FormUiModelColorFactoryImpl
 import org.dhis2.data.forms.dataentry.ValueStore
 import org.dhis2.data.forms.dataentry.ValueStoreImpl
+import org.dhis2.data.forms.dataentry.fields.FieldViewModelFactory
 import org.dhis2.data.forms.dataentry.fields.FieldViewModelFactoryImpl
-import org.dhis2.data.schedulers.SchedulerProvider
+import org.dhis2.form.data.FormRepository
+import org.dhis2.form.data.FormRepositoryPersistenceImpl
+import org.dhis2.form.model.RowAction
+import org.dhis2.form.ui.style.FormUiColorFactory
+import org.dhis2.form.ui.validation.FieldErrorMessageProvider
 import org.dhis2.utils.analytics.AnalyticsHelper
+import org.dhis2.utils.analytics.matomo.MatomoAnalyticsController
+import org.dhis2.utils.reporting.CrashReportController
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.arch.repositories.`object`.ReadOnlyOneObjectRepositoryFinalImpl
 import org.hisp.dhis.android.core.enrollment.EnrollmentObjectRepository
 import org.hisp.dhis.android.core.program.Program
 import org.hisp.dhis.android.core.trackedentity.TrackedEntityInstanceObjectRepository
-import org.hisp.dhis.rules.RuleExpressionEvaluator
 
 @Module
 class EnrollmentModule(
     private val enrollmentView: EnrollmentView,
     val enrollmentUid: String,
     val programUid: String,
-    val enrollmentMode: EnrollmentActivity.EnrollmentMode
+    private val enrollmentMode: EnrollmentActivity.EnrollmentMode,
+    val activityContext: Context
 ) {
 
     @Provides
@@ -54,8 +65,13 @@ class EnrollmentModule(
 
     @Provides
     @PerActivity
-    fun provideDataEntrytRepository(context: Context, d2: D2): DataEntryRepository {
-        val modelFactory = FieldViewModelFactoryImpl(context.valueTypeHintMap())
+    fun provideDataEntrytRepository(
+        context: Context,
+        d2: D2,
+        dhisEnrollmentUtils: DhisEnrollmentUtils,
+        onRowActionProcessor: FlowableProcessor<RowAction>,
+        modelFactory: FieldViewModelFactory
+    ): EnrollmentRepository {
         val enrollmentDataSectionLabel = context.getString(R.string.enrollment_data_section_label)
         val singleSectionLabel = context.getString(R.string.enrollment_single_section_label)
         val enrollmentOrgUnitLabel = context.getString(R.string.enrolling_ou)
@@ -68,6 +84,7 @@ class EnrollmentModule(
             modelFactory,
             enrollmentUid,
             d2,
+            dhisEnrollmentUtils,
             enrollmentMode,
             enrollmentDataSectionLabel,
             singleSectionLabel,
@@ -76,8 +93,24 @@ class EnrollmentModule(
             enrollmentCoordinatesLabel,
             reservedValueWarning,
             enrollmentDateDefaultLabel,
-            incidentDateDefaultLabel
+            incidentDateDefaultLabel,
+            onRowActionProcessor
         )
+    }
+
+    @Provides
+    @PerActivity
+    fun fieldFactory(
+        context: Context,
+        colorFactory: FormUiColorFactory
+    ): FieldViewModelFactory {
+        return FieldViewModelFactoryImpl(context.valueTypeHintMap(), false, colorFactory)
+    }
+
+    @Provides
+    @PerActivity
+    fun provideFormUiColorFactory(): FormUiColorFactory {
+        return FormUiModelColorFactoryImpl(activityContext, true)
     }
 
     @Provides
@@ -86,13 +119,17 @@ class EnrollmentModule(
         context: Context,
         d2: D2,
         enrollmentObjectRepository: EnrollmentObjectRepository,
-        dataEntryRepository: DataEntryRepository,
+        dataEntryRepository: EnrollmentRepository,
         teiRepository: TrackedEntityInstanceObjectRepository,
         programRepository: ReadOnlyOneObjectRepositoryFinalImpl<Program>,
         schedulerProvider: SchedulerProvider,
-        formRepository: EnrollmentFormRepository,
+        enrollmentFormRepository: EnrollmentFormRepository,
         valueStore: ValueStore,
-        analyticsHelper: AnalyticsHelper
+        analyticsHelper: AnalyticsHelper,
+        onRowActionProcessor: FlowableProcessor<RowAction>,
+        fieldViewModelFactory: FieldViewModelFactory,
+        matomoAnalyticsController: MatomoAnalyticsController,
+        formRepository: FormRepository
     ): EnrollmentPresenterImpl {
         return EnrollmentPresenterImpl(
             enrollmentView,
@@ -102,20 +139,36 @@ class EnrollmentModule(
             teiRepository,
             programRepository,
             schedulerProvider,
-            formRepository,
+            enrollmentFormRepository,
             valueStore,
             analyticsHelper,
-            context.getString(R.string.field_is_mandatory)
+            context.getString(R.string.field_is_mandatory),
+            onRowActionProcessor,
+            fieldViewModelFactory.sectionProcessor(),
+            matomoAnalyticsController,
+            formRepository
         )
     }
 
     @Provides
     @PerActivity
-    fun valueStore(d2: D2, enrollmentRepository: EnrollmentObjectRepository): ValueStore {
+    fun provideOnRowActionProcessor(): FlowableProcessor<RowAction> {
+        return PublishProcessor.create()
+    }
+
+    @Provides
+    @PerActivity
+    fun valueStore(
+        d2: D2,
+        enrollmentRepository: EnrollmentObjectRepository,
+        crashReportController: CrashReportController
+    ): ValueStore {
         return ValueStoreImpl(
             d2,
             enrollmentRepository.blockingGet().trackedEntityInstance()!!,
-            DataEntryStore.EntryMode.ATTR
+            DataEntryStore.EntryMode.ATTR,
+            DhisEnrollmentUtils(d2),
+            crashReportController
         )
     }
 
@@ -130,7 +183,6 @@ class EnrollmentModule(
     fun formRepository(
         d2: D2,
         rulesRepository: RulesRepository,
-        evaluator: RuleExpressionEvaluator,
         enrollmentRepository: EnrollmentObjectRepository,
         programRepository: ReadOnlyOneObjectRepositoryFinalImpl<Program>,
         teiRepository: TrackedEntityInstanceObjectRepository
@@ -138,10 +190,29 @@ class EnrollmentModule(
         return EnrollmentFormRepositoryImpl(
             d2,
             rulesRepository,
-            evaluator,
             enrollmentRepository,
             programRepository,
             teiRepository
+        )
+    }
+
+    @Provides
+    @PerActivity
+    fun provideEnrollmentFormRepository(
+        d2: D2,
+        enrollmentRepository: EnrollmentObjectRepository,
+        crashReportController: CrashReportController
+    ): FormRepository {
+        return FormRepositoryPersistenceImpl(
+            ValueStoreImpl(
+                d2,
+                enrollmentRepository.blockingGet().trackedEntityInstance()!!,
+                DataEntryStore.EntryMode.ATTR,
+                DhisEnrollmentUtils(d2),
+                enrollmentRepository,
+                crashReportController
+            ),
+            FieldErrorMessageProvider(activityContext)
         )
     }
 }

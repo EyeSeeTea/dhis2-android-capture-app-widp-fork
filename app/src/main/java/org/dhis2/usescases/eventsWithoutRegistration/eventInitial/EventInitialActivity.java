@@ -1,9 +1,9 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventInitial;
 
+import android.Manifest;
 import android.app.DatePickerDialog;
-import android.app.Dialog;
-import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.SparseBooleanArray;
@@ -15,39 +15,46 @@ import android.widget.PopupMenu;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
+import androidx.core.app.ActivityCompat;
 import androidx.databinding.DataBindingUtil;
 
 import com.jakewharton.rxbinding2.view.RxView;
 
 import org.dhis2.App;
+import org.dhis2.Bindings.DoubleExtensionsKt;
 import org.dhis2.R;
-import org.dhis2.data.forms.FormSectionViewModel;
-import org.dhis2.data.forms.dataentry.fields.FieldViewModel;
+import org.dhis2.commons.dialogs.calendarpicker.CalendarPicker;
+import org.dhis2.commons.dialogs.calendarpicker.OnDatePickerListener;
+import org.dhis2.commons.prefs.Preference;
+import org.dhis2.commons.prefs.PreferenceProvider;
+import org.dhis2.data.dhislogic.DhisPeriodUtils;
+import org.dhis2.data.forms.dataentry.fields.coordinate.CoordinateViewModel;
 import org.dhis2.data.forms.dataentry.fields.unsupported.UnsupportedViewModel;
-import org.dhis2.data.prefs.Preference;
-import org.dhis2.data.prefs.PreferenceProvider;
+import org.dhis2.data.location.LocationProvider;
 import org.dhis2.databinding.ActivityEventInitialBinding;
 import org.dhis2.databinding.CategorySelectorBinding;
-import org.dhis2.databinding.WidgetDatepickerBinding;
-import org.dhis2.usescases.coodinates.CoordinatesView;
+import org.dhis2.form.data.GeometryController;
+import org.dhis2.form.data.GeometryParserImpl;
+import org.dhis2.form.model.FieldUiModel;
+import org.dhis2.uicomponents.map.views.MapSelectorActivity;
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureActivity;
 import org.dhis2.usescases.general.ActivityGlobalAbstract;
 import org.dhis2.usescases.qrCodes.eventsworegistration.QrEventsWORegistrationActivity;
-import org.dhis2.utils.ColorUtils;
+import org.dhis2.commons.resources.ColorUtils;
 import org.dhis2.utils.Constants;
 import org.dhis2.utils.DateUtils;
-import org.dhis2.utils.DialogClickListener;
+import org.dhis2.commons.dialogs.DialogClickListener;
 import org.dhis2.utils.EventCreationType;
 import org.dhis2.utils.EventMode;
 import org.dhis2.utils.HelpManager;
 import org.dhis2.utils.analytics.AnalyticsConstants;
 import org.dhis2.utils.category.CategoryDialog;
 import org.dhis2.utils.customviews.CatOptionPopUp;
-import org.dhis2.utils.customviews.CustomDialog;
+import org.dhis2.commons.dialogs.CustomDialog;
 import org.dhis2.utils.customviews.OrgUnitDialog;
 import org.dhis2.utils.customviews.PeriodDialog;
 import org.dhis2.utils.resources.ResourceManager;
+import org.hisp.dhis.android.core.arch.helpers.GeometryHelper;
 import org.hisp.dhis.android.core.category.Category;
 import org.hisp.dhis.android.core.category.CategoryCombo;
 import org.hisp.dhis.android.core.category.CategoryOption;
@@ -62,6 +69,7 @@ import org.hisp.dhis.android.core.organisationunit.OrganisationUnit;
 import org.hisp.dhis.android.core.period.PeriodType;
 import org.hisp.dhis.android.core.program.Program;
 import org.hisp.dhis.android.core.program.ProgramStage;
+import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -79,11 +87,11 @@ import javax.inject.Inject;
 
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.functions.Consumer;
 import kotlin.Unit;
 import timber.log.Timber;
 
 import static android.text.TextUtils.isEmpty;
+import static org.dhis2.usescases.eventsWithoutRegistration.eventInitial.EventInitialPresenter.ACCESS_LOCATION_PERMISSION_REQUEST;
 import static org.dhis2.utils.Constants.ENROLLMENT_UID;
 import static org.dhis2.utils.Constants.EVENT_CREATION_TYPE;
 import static org.dhis2.utils.Constants.EVENT_PERIOD_TYPE;
@@ -91,19 +99,27 @@ import static org.dhis2.utils.Constants.ONE_TIME;
 import static org.dhis2.utils.Constants.ORG_UNIT;
 import static org.dhis2.utils.Constants.PERMANENT;
 import static org.dhis2.utils.Constants.PROGRAM_UID;
+import static org.dhis2.utils.Constants.RQ_MAP_LOCATION_VIEW;
 import static org.dhis2.utils.Constants.TRACKED_ENTITY_INSTANCE;
 import static org.dhis2.utils.analytics.AnalyticsConstants.CLICK;
 import static org.dhis2.utils.analytics.AnalyticsConstants.CREATE_EVENT;
 import static org.dhis2.utils.analytics.AnalyticsConstants.DELETE_EVENT;
 import static org.dhis2.utils.analytics.AnalyticsConstants.SHOW_HELP;
 
-public class EventInitialActivity extends ActivityGlobalAbstract implements EventInitialContract.View, DatePickerDialog.OnDateSetListener {
+public class EventInitialActivity extends ActivityGlobalAbstract implements EventInitialContract.View,
+        DatePickerDialog.OnDateSetListener {
 
     @Inject
-    EventInitialContract.Presenter presenter;
+    EventInitialPresenter presenter;
 
     @Inject
     PreferenceProvider preferences;
+
+    @Inject
+    DhisPeriodUtils periodUtils;
+
+    @Inject
+    LocationProvider locationProvider;
 
     private Event eventModel;
 
@@ -127,9 +143,6 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
     private Date selectedOrgUnitClosedDate;
     private ProgramStage programStage;
 
-    private int totalFields;
-    private int totalCompletedFields;
-    private int unsupportedFields;
     private String tempCreate;
     private boolean fixedOrgUnit;
     private String catOptionComboUid;
@@ -142,6 +155,8 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
 
     private CompositeDisposable disposable = new CompositeDisposable();
     private Geometry newGeometry;
+    private CoordinateViewModel currentGeometryModel;
+    private GeometryController geometryController = new GeometryController(new GeometryParserImpl());
 
     public static Bundle getBundle(String programUid, String eventUid, String eventCreationType,
                                    String teiUid, PeriodType eventPeriodType, String orgUnit, String stageUid,
@@ -178,12 +193,13 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         initVariables();
-        setScreenName(this.getLocalClassName());
         ((App) getApplicationContext()).userComponent().plus(
                 new EventInitialModule(this,
                         eventUid,
-                        programStageUid)
+                        programStageUid,
+                        getContext())
         ).inject(this);
+        setScreenName(this.getLocalClassName());
         super.onCreate(savedInstanceState);
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_event_initial);
@@ -199,13 +215,13 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
     }
 
     private void initActionButton() {
-
         disposable.add(RxView.clicks(binding.actionButton)
                 .debounce(500, TimeUnit.MILLISECONDS, AndroidSchedulers.mainThread())
                 .subscribe(v -> {
                             binding.actionButton.setEnabled(false);
                             String programStageModelUid = programStage == null ? "" : programStage.uid();
                             if (eventUid == null) { // This is a new Event
+                                presenter.onEventCreated();
                                 analyticsHelper().setEvent(CREATE_EVENT, AnalyticsConstants.DATA_CREATION, CREATE_EVENT);
                                 if (eventCreationType == EventCreationType.REFERAL && tempCreate.equals(PERMANENT)) {
                                     presenter.scheduleEventPermanent(
@@ -288,6 +304,8 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
             binding.shareContainer.setVisibility(View.GONE);
             binding.actionButton.setText(R.string.next);
         } else {
+            fixedOrgUnit = true;
+            binding.orgUnitLayout.setEnabled(false);
             binding.actionButton.setText(R.string.update);
         }
 
@@ -301,7 +319,11 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
     }
 
     private void initProgressBar() {
-        binding.completion.setVisibility(eventUid == null ? View.GONE : View.VISIBLE);
+        if (eventUid != null && presenter.getCompletionPercentageVisibility()) {
+            binding.completion.setVisibility(View.VISIBLE);
+        } else {
+            binding.completion.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -374,7 +396,7 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
             } else {
                 now.setTime(DateUtils.getInstance().getNextPeriod(periodType, now.getTime(), eventCreationType != EventCreationType.SCHEDULE ? 0 : 1));
                 selectedDate = now.getTime();
-                selectedDateString = DateUtils.getInstance().getPeriodUIString(periodType, selectedDate, Locale.getDefault());
+                selectedDateString = periodUtils.getPeriodUIString(periodType, selectedDate, Locale.getDefault());
             }
 
             binding.date.setText(selectedDateString);
@@ -404,7 +426,7 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
                         .setMaxDate(eventCreationType.equals(EventCreationType.ADDNEW) || eventCreationType.equals(EventCreationType.DEFAULT) ? DateUtils.getInstance().getToday() : null)
                         .setPossitiveListener(selectedDate -> {
                             this.selectedDate = selectedDate;
-                            binding.date.setText(DateUtils.getInstance().getPeriodUIString(periodType, selectedDate, Locale.getDefault()));
+                            binding.date.setText(periodUtils.getPeriodUIString(periodType, selectedDate, Locale.getDefault()));
                             binding.date.clearFocus();
                             if (!fixedOrgUnit) {
                                 presenter.initOrgunit(selectedDate);
@@ -424,7 +446,6 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
             for (int i = 0; i < binding.catComboLayout.getChildCount(); i++)
                 binding.catComboLayout.getChildAt(i).findViewById(R.id.cat_combo).setEnabled(false);
             binding.orgUnit.setEnabled(false);
-            binding.geometry.setEditable(false);
             binding.temp.setEnabled(false);
             binding.actionButton.setText(getString(R.string.check_event));
             binding.executePendingBindings();
@@ -456,10 +477,6 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
         if (event.eventDate() != null) {
             selectedDate = event.eventDate();
             binding.date.setText(DateUtils.uiDateFormat().format(selectedDate));
-        }
-
-        if (event.geometry() != null && event.geometry().type() != FeatureType.NONE) {
-            binding.geometry.updateLocation(event.geometry());
         }
 
         eventModel = event;
@@ -495,22 +512,11 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
         this.programStage = programStage;
         binding.setProgramStage(programStage);
 
-        binding.geometry.setIsBgTransparent(true);
-        binding.geometry.setEditable(true);
-        binding.geometry.setFeatureType(programStage.featureType());
-        binding.geometry.setCurrentLocationListener(geometry -> {
-            this.newGeometry = geometry;
-            presenter.setChangingCoordinates(true);
-        });
-        binding.geometry.setMapListener(
-                (CoordinatesView.OnMapPositionClick) binding.geometry.getContext()
-        );
-
         if (periodType == null)
             periodType = programStage.periodType();
 
         if (eventCreationType == EventCreationType.SCHEDULE)
-            binding.dateLayout.setHint(getString(R.string.due_date));
+            binding.dateLayout.setHint(programStage.dueDateLabel() != null ? programStage.dueDateLabel() : getString(R.string.due_date));
         else if (programStage.executionDateLabel() != null)
             binding.dateLayout.setHint(programStage.executionDateLabel());
         else
@@ -527,7 +533,7 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
             } else {
                 now.setTime(DateUtils.getInstance().getNextPeriod(periodType, now.getTime(), eventCreationType != EventCreationType.SCHEDULE ? 0 : 1));
                 selectedDate = now.getTime();
-                selectedDateString = DateUtils.getInstance().getPeriodUIString(periodType, selectedDate, Locale.getDefault());
+                selectedDateString = periodUtils.getPeriodUIString(periodType, selectedDate, Locale.getDefault());
             }
         }
         presenter.getStageObjectStyle(this.programStage.uid());
@@ -613,102 +619,59 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
 
     @Override
     public void showDateDialog(DatePickerDialog.OnDateSetListener listener) {
-        showCustomCalendar(listener);
+        showCalendar(listener);
     }
 
-    private void showNativeCalendar(DatePickerDialog.OnDateSetListener listener) {
-        Calendar calendar = Calendar.getInstance();
-
-        if (selectedDate != null)
-            calendar.setTime(selectedDate);
-
-        if (eventCreationType == EventCreationType.SCHEDULE)
-            calendar.add(Calendar.DAY_OF_YEAR, eventScheduleInterval);
-
-        DatePickerDialog datePickerDialog = new DatePickerDialog(this, listener,
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH));
-
-        if (program.expiryPeriodType() != null) {
-            Date minDate = DateUtils.getInstance().expDate(null, program.expiryDays() == null ? 0 : program.expiryDays(), program.expiryPeriodType());
-            datePickerDialog.getDatePicker().setMinDate(minDate.getTime());
+    private void showCalendar(DatePickerDialog.OnDateSetListener listener) {
+        int scheduleInterval = 0;
+        Date minDate = null;
+        Date maxDate = null;
+        boolean allowedFutureDates = false;
+        if (eventCreationType == EventCreationType.SCHEDULE) {
+            scheduleInterval = eventScheduleInterval;
+            allowedFutureDates = true;
         }
 
+        if (program.expiryPeriodType() != null) {
+            minDate = DateUtils.getInstance().expDate(null, program.expiryDays() == null ? 0 : program.expiryDays(), program.expiryPeriodType());
+        }
         switch (eventCreationType) {
             case ADDNEW:
             case DEFAULT:
-                datePickerDialog.getDatePicker().setMaxDate(System.currentTimeMillis() - 1000);
+                maxDate = new Date(System.currentTimeMillis() - 1000);
                 break;
             case REFERAL:
             case SCHEDULE:
                 break;
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            datePickerDialog.setButton(DialogInterface.BUTTON_NEUTRAL, getContext().getResources().getString(R.string.change_calendar), (dialog, which) -> {
-                datePickerDialog.dismiss();
-                showCustomCalendar(listener);
-            });
-        }
+        CalendarPicker dialog = new CalendarPicker(getContext());
+        dialog.setInitialDate(selectedDate);
+        dialog.setMinDate(minDate);
+        dialog.setMaxDate(maxDate);
+        dialog.setScheduleInterval(scheduleInterval);
+        dialog.isFutureDatesAllowed(allowedFutureDates);
+        dialog.setListener(
+                new OnDatePickerListener() {
+                    @Override
+                    public void onNegativeClick() { }
 
-        datePickerDialog.show();
-    }
-
-    private void showCustomCalendar(DatePickerDialog.OnDateSetListener listener) {
-        LayoutInflater layoutInflater = LayoutInflater.from(getContext());
-        WidgetDatepickerBinding widgetBinding = WidgetDatepickerBinding.inflate(layoutInflater);
-        final DatePicker datePicker = widgetBinding.widgetDatepicker;
-
-        Calendar calendar = Calendar.getInstance();
-
-        if (selectedDate != null)
-            calendar.setTime(selectedDate);
-
-        if (eventCreationType == EventCreationType.SCHEDULE)
-            calendar.add(Calendar.DAY_OF_YEAR, eventScheduleInterval);
-
-        datePicker.updateDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
-
-        if (program.expiryPeriodType() != null) {
-            Date minDate = DateUtils.getInstance().expDate(null, program.expiryDays() == null ? 0 : program.expiryDays(), program.expiryPeriodType());
-            datePicker.setMinDate(minDate.getTime());
-        }
-
-        switch (eventCreationType) {
-            case ADDNEW:
-            case DEFAULT:
-                datePicker.setMaxDate(System.currentTimeMillis() - 1000);
-                break;
-            case REFERAL:
-            case SCHEDULE:
-                break;
-        }
-
-        AlertDialog.Builder alertDialog = new AlertDialog.Builder(getContext(), R.style.DatePickerTheme);
-
-        alertDialog.setView(widgetBinding.getRoot());
-        Dialog dialog = alertDialog.create();
-
-        widgetBinding.changeCalendarButton.setOnClickListener(calendarButton -> {
-            showNativeCalendar(listener);
-            dialog.dismiss();
-        });
-        widgetBinding.clearButton.setOnClickListener(clearButton -> dialog.dismiss());
-        widgetBinding.acceptButton.setOnClickListener(acceptButton -> {
-            listener.onDateSet(datePicker, datePicker.getYear(), datePicker.getMonth(), datePicker.getDayOfMonth());
-            dialog.dismiss();
-        });
-
+                    @Override
+                    public void onPositiveClick(DatePicker datePicker) {
+                        onDateSet(datePicker, datePicker.getYear(), datePicker.getMonth(), datePicker.getDayOfMonth());
+                    }
+                }
+        );
         dialog.show();
     }
-
+    
     @Override
     public void onDateSet(DatePicker datePicker, int year, int month, int day) {
         Calendar c = Calendar.getInstance();
-        c.set(year, month, day, 0, 0);
+        c.set(year, month, day, 0, 0, 0);
+        c.set(Calendar.MILLISECOND, 0);
         selectedDate = c.getTime();
-        selectedDateString = DateUtils.getInstance().getPeriodUIString(periodType, selectedDate, Locale.getDefault());
+        selectedDateString = periodUtils.getPeriodUIString(periodType, selectedDate, Locale.getDefault());
         binding.date.setText(selectedDateString);
         binding.date.clearFocus();
         if (!fixedOrgUnit) {
@@ -717,39 +680,13 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
     }
 
     @Override
-    public void onEventSections(List<FormSectionViewModel> formSectionViewModels) {
-        for (FormSectionViewModel formSectionViewModel : formSectionViewModels) {
-            presenter.getSectionCompletion(formSectionViewModel.sectionUid());
-        }
-    }
-
-    @NonNull
-    @Override
-    public Consumer<List<FieldViewModel>> showFields(String sectionUid) {
-        return this::swap;
+    public void updatePercentage(float primaryValue) {
+        binding.completion.setCompletionPercentage(primaryValue);
     }
 
     @Override
     public void showProgramStageSelection() {
         presenter.getProgramStage(programStageUid);
-    }
-
-    void swap(@NonNull List<FieldViewModel> updates) {
-
-        List<FieldViewModel> realUpdates = new ArrayList<>();
-        if (sectionsToHide != null && !sectionsToHide.isEmpty()) {
-            for (FieldViewModel fieldViewModel : updates)
-                if (!sectionsToHide.contains(fieldViewModel.programStageSection()))
-                    realUpdates.add(fieldViewModel);
-        } else
-            realUpdates.addAll(updates);
-
-        totalCompletedFields = totalCompletedFields + calculateCompletedFields(realUpdates);
-        unsupportedFields = unsupportedFields + calculateUnsupportedFields(updates);
-        totalFields = totalFields + realUpdates.size();
-        binding.completion.setCompletionPercentage((float) totalCompletedFields / (float) totalFields);
-        binding.completion.setSecondaryPercentage((float) unsupportedFields / (float) totalFields);
-
     }
 
     @Override
@@ -798,18 +735,18 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
             binding.orgUnit.setText("");
     }
 
-    private int calculateCompletedFields(@NonNull List<FieldViewModel> updates) {
+    private int calculateCompletedFields(@NonNull List<FieldUiModel> updates) {
         int total = 0;
-        for (FieldViewModel fieldViewModel : updates) {
-            if (fieldViewModel.value() != null && !fieldViewModel.value().isEmpty())
+        for (FieldUiModel fieldViewModel : updates) {
+            if (fieldViewModel.getValue() != null && !fieldViewModel.getValue().isEmpty())
                 total++;
         }
         return total;
     }
 
-    private int calculateUnsupportedFields(@NonNull List<FieldViewModel> updates) {
+    private int calculateUnsupportedFields(@NonNull List<FieldUiModel> updates) {
         int total = 0;
-        for (FieldViewModel fieldViewModel : updates) {
+        for (FieldUiModel fieldViewModel : updates) {
             if (fieldViewModel instanceof UnsupportedViewModel)
                 total++;
         }
@@ -843,7 +780,6 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
             for (int i = 0; i < binding.catComboLayout.getChildCount(); i++)
                 binding.catComboLayout.getChildAt(i).findViewById(R.id.cat_combo).setEnabled(false);
             binding.actionButton.setText(getString(R.string.check_event));
-            binding.geometry.setEditable(false);
             binding.executePendingBindings();
         }
     }
@@ -967,5 +903,92 @@ public class EventInitialActivity extends ActivityGlobalAbstract implements Even
     public void showEventWasDeleted() {
         showToast(getString(R.string.event_was_deleted));
         finish();
+    }
+
+    @Override
+    public void setGeometryModel(CoordinateViewModel geometryModel) {
+        setGeometryCallback(geometryModel);
+        binding.geometry.setItem(geometryModel);
+    }
+
+    private void setGeometryCallback(CoordinateViewModel geometryModel) {
+        currentGeometryModel = geometryModel;
+        geometryModel.setCallback(geometryController.getCoordinatesCallback(
+                value -> {
+                    presenter.setChangingCoordinates(true);
+                    setNewGeometry(value);
+                    setGeometryModel((CoordinateViewModel) geometryModel.withValue(value));
+                    return Unit.INSTANCE;
+                },
+                fieldUid -> {
+                    requestLocation();
+                    return Unit.INSTANCE;
+                },
+                (fieldUid, featureType, initialCoordinates) -> {
+                    startActivityForResult(
+                            MapSelectorActivity.Companion.create(EventInitialActivity.this,
+                                    FeatureType.valueOfFeatureType(featureType),
+                                    initialCoordinates),
+                            RQ_MAP_LOCATION_VIEW);
+                    return Unit.INSTANCE;
+                }
+        ));
+    }
+
+    @Override
+    public void setNewGeometry(String value) {
+        if (value != null) {
+            this.newGeometry = Geometry.builder()
+                    .coordinates(value)
+                    .type(programStage.featureType())
+                    .build();
+        } else {
+            this.newGeometry = null;
+        }
+    }
+
+    @Override
+    public void displayFeatureTypeError() {
+        displayMessage(getString(R.string.coordinate_feature_type_error));
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if (resultCode == RESULT_OK && requestCode == RQ_MAP_LOCATION_VIEW && data != null && data.getExtras() != null) {
+            FeatureType locationType = FeatureType.valueOf(data.getStringExtra(MapSelectorActivity.LOCATION_TYPE_EXTRA));
+            String dataExtra = data.getStringExtra(MapSelectorActivity.DATA_EXTRA);
+            Geometry geometry = geometryController.generateLocationFromCoordinates(locationType, dataExtra);
+            currentGeometryModel.onCurrentLocationClick(geometry);
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull @NotNull String[] permissions, @NonNull @NotNull int[] grantResults) {
+        if (requestCode == ACCESS_LOCATION_PERMISSION_REQUEST && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            requestLocation();
+        }
+    }
+
+    private void requestLocation() {
+        locationProvider.getLastKnownLocation(
+                location -> {
+                    double longitude = DoubleExtensionsKt.truncate(location.getLongitude());
+                    double latitude = DoubleExtensionsKt.truncate(location.getLatitude());
+                    Geometry geometry = GeometryHelper.createPointGeometry(longitude, latitude);
+                    currentGeometryModel.onCurrentLocationClick(geometry);
+                    return Unit.INSTANCE;
+                },
+                () -> {
+                    ActivityCompat.requestPermissions((ActivityGlobalAbstract) getContext(),
+                            new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                            ACCESS_LOCATION_PERMISSION_REQUEST);
+                    return Unit.INSTANCE;
+                },
+                () -> {
+                    displayMessage(getString(R.string.enable_location_message));
+                    return Unit.INSTANCE;
+                });
     }
 }

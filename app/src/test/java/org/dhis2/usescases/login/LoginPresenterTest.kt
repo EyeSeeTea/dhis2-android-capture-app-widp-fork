@@ -2,6 +2,7 @@ package org.dhis2.usescases.login
 
 import co.infinum.goldfinger.Goldfinger
 import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.atMost
 import com.nhaarman.mockitokotlin2.doReturn
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.times
@@ -10,16 +11,22 @@ import com.nhaarman.mockitokotlin2.verifyNoMoreInteractions
 import com.nhaarman.mockitokotlin2.whenever
 import io.reactivex.Completable
 import io.reactivex.Observable
-import junit.framework.Assert.assertTrue
+import org.dhis2.commons.prefs.Preference
+import org.dhis2.commons.prefs.PreferenceProvider
+import org.dhis2.commons.prefs.SECURE_PASS
+import org.dhis2.commons.prefs.SECURE_SERVER_URL
+import org.dhis2.commons.prefs.SECURE_USER_NAME
+import org.dhis2.commons.schedulers.SchedulerProvider
 import org.dhis2.data.fingerprint.FingerPrintController
 import org.dhis2.data.fingerprint.FingerPrintResult
 import org.dhis2.data.fingerprint.Type
-import org.dhis2.data.prefs.Preference
-import org.dhis2.data.prefs.PreferenceProvider
-import org.dhis2.data.schedulers.SchedulerProvider
 import org.dhis2.data.schedulers.TrampolineSchedulerProvider
 import org.dhis2.data.server.UserManager
 import org.dhis2.usescases.main.MainActivity
+import org.dhis2.utils.Constants.PREFS_URLS
+import org.dhis2.utils.Constants.PREFS_USERS
+import org.dhis2.utils.Constants.USER_ASKED_CRASHLYTICS
+import org.dhis2.utils.Constants.USER_TEST_ANDROID
 import org.dhis2.utils.Constants
 import org.dhis2.utils.Constants.SECURE_SERVER_URL
 import org.dhis2.utils.Constants.SECURE_USER_NAME
@@ -29,7 +36,9 @@ import org.dhis2.utils.analytics.AnalyticsHelper
 import org.dhis2.utils.analytics.CLICK
 import org.dhis2.utils.analytics.LOGIN
 import org.dhis2.utils.analytics.SERVER_QR_SCANNER
+import org.dhis2.utils.reporting.CrashReportController
 import org.hisp.dhis.android.core.user.User
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
@@ -46,11 +55,19 @@ class LoginPresenterTest {
     private val userManager: UserManager =
         Mockito.mock(UserManager::class.java, Mockito.RETURNS_DEEP_STUBS)
     private val analyticsHelper: AnalyticsHelper = mock()
+    private val crashReportController: CrashReportController = mock()
 
     @Before
     fun setup() {
         loginPresenter =
-            LoginPresenter(view, preferenceProvider, schedulers, goldfinger, analyticsHelper)
+            LoginPresenter(
+                view,
+                preferenceProvider,
+                schedulers,
+                goldfinger,
+                analyticsHelper,
+                crashReportController
+            )
     }
 
     @Test
@@ -110,7 +127,7 @@ class LoginPresenterTest {
         loginPresenter.init(userManager)
 
         verify(view).setUrl(protocol)
-        verify(view).getDefaultServerProtocol()
+        verify(view,atMost(2)).getDefaultServerProtocol()
         verifyNoMoreInteractions(view)
     }
 
@@ -130,7 +147,7 @@ class LoginPresenterTest {
     fun `Should show fabric dialog when continue is clicked and user has not been asked before`() {
         whenever(
             preferenceProvider.getBoolean(
-                Constants.USER_ASKED_CRASHLYTICS,
+                USER_ASKED_CRASHLYTICS,
                 false
             )
         ) doReturn false
@@ -145,7 +162,7 @@ class LoginPresenterTest {
     fun `Should show progress dialog when user click on continue`() {
         whenever(
             preferenceProvider.getBoolean(
-                Constants.USER_ASKED_CRASHLYTICS,
+                USER_ASKED_CRASHLYTICS,
                 false
             )
         ) doReturn true
@@ -174,23 +191,24 @@ class LoginPresenterTest {
         )
         whenever(
             preferenceProvider.contains(
-                Constants.SECURE_SERVER_URL,
-                Constants.SECURE_USER_NAME, Constants.SECURE_PASS
+                SECURE_SERVER_URL,
+                SECURE_USER_NAME,
+                SECURE_PASS
             )
         ) doReturn true
         whenever(
-            preferenceProvider.getString(Constants.SECURE_SERVER_URL)
+            preferenceProvider.getString(SECURE_SERVER_URL)
         ) doReturn "http://dhis2.org"
-        whenever(preferenceProvider.getString(Constants.SECURE_USER_NAME)) doReturn "James"
-        whenever(preferenceProvider.getString(Constants.SECURE_PASS)) doReturn "1234"
+        whenever(preferenceProvider.getString(SECURE_USER_NAME)) doReturn "James"
+        whenever(preferenceProvider.getString(SECURE_PASS)) doReturn "1234"
 
         loginPresenter.onFingerprintClick()
 
         verify(view).showCredentialsData(
             Goldfinger.Type.SUCCESS,
-            preferenceProvider.getString(Constants.SECURE_SERVER_URL)!!,
-            preferenceProvider.getString(Constants.SECURE_USER_NAME)!!,
-            preferenceProvider.getString(Constants.SECURE_PASS)!!
+            preferenceProvider.getString(SECURE_SERVER_URL)!!,
+            preferenceProvider.getString(SECURE_USER_NAME)!!,
+            preferenceProvider.getString(SECURE_PASS)!!
         )
     }
 
@@ -204,8 +222,9 @@ class LoginPresenterTest {
         )
         whenever(
             preferenceProvider.contains(
-                Constants.SECURE_SERVER_URL,
-                Constants.SECURE_USER_NAME, Constants.SECURE_PASS
+                SECURE_SERVER_URL,
+                SECURE_USER_NAME,
+                SECURE_PASS
             )
         ) doReturn true
 
@@ -224,8 +243,9 @@ class LoginPresenterTest {
         )
         whenever(
             preferenceProvider.contains(
-                Constants.SECURE_SERVER_URL,
-                Constants.SECURE_USER_NAME, Constants.SECURE_PASS
+                SECURE_SERVER_URL,
+                SECURE_USER_NAME,
+                SECURE_PASS
             )
         ) doReturn false
 
@@ -278,8 +298,8 @@ class LoginPresenterTest {
             TestingCredential("testing_server_3", "testing_user3", "psw", "")
         )
 
-        whenever(preferenceProvider.getSet(Constants.PREFS_URLS, emptySet())) doReturn urlSet
-        whenever(preferenceProvider.getSet(Constants.PREFS_USERS, emptySet())) doReturn userSet
+        whenever(preferenceProvider.getSet(PREFS_URLS, emptySet())) doReturn urlSet
+        whenever(preferenceProvider.getSet(PREFS_USERS, emptySet())) doReturn userSet
 
         val (urls, users) = loginPresenter.getAutocompleteData(testingCredentials)
 
@@ -291,7 +311,7 @@ class LoginPresenterTest {
             assertTrue(users.contains(it))
         }
 
-        assertTrue(users.contains(Constants.USER_TEST_ANDROID))
+        assertTrue(users.contains(USER_TEST_ANDROID))
 
         testingCredentials.forEach {
             assertTrue(urls.contains(it.server_url))

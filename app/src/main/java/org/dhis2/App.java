@@ -1,7 +1,6 @@
 package org.dhis2;
 
 import android.content.Context;
-import android.os.Build;
 import android.os.Looper;
 
 import androidx.annotation.NonNull;
@@ -14,24 +13,20 @@ import androidx.lifecycle.ProcessLifecycleOwner;
 import androidx.multidex.MultiDex;
 import androidx.multidex.MultiDexApplication;
 
-import com.crashlytics.android.Crashlytics;
-import com.facebook.stetho.Stetho;
-import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
-import com.google.android.gms.common.GooglePlayServicesRepairableException;
-import com.google.android.gms.security.ProviderInstaller;
-
-import org.acra.ACRA;
-import org.acra.config.CoreConfigurationBuilder;
-import org.acra.config.HttpSenderConfigurationBuilder;
-import org.acra.data.StringFormat;
-import org.acra.sender.HttpSender;
-import org.dhis2.data.dagger.PerActivity;
-import org.dhis2.data.dagger.PerServer;
-import org.dhis2.data.dagger.PerUser;
-import org.dhis2.data.prefs.Preference;
-import org.dhis2.data.prefs.PreferenceModule;
-import org.dhis2.data.schedulers.SchedulerModule;
-import org.dhis2.data.schedulers.SchedulersProviderImpl;
+import org.dhis2.commons.dialogs.calendarpicker.di.CalendarPickerComponent;
+import org.dhis2.commons.dialogs.calendarpicker.di.CalendarPickerModule;
+import org.dhis2.commons.di.dagger.PerActivity;
+import org.dhis2.commons.di.dagger.PerServer;
+import org.dhis2.commons.di.dagger.PerUser;
+import org.dhis2.commons.featureconfig.di.FeatureConfigActivityComponent;
+import org.dhis2.commons.featureconfig.di.FeatureConfigActivityModule;
+import org.dhis2.commons.featureconfig.di.FeatureConfigModule;
+import org.dhis2.commons.prefs.Preference;
+import org.dhis2.commons.prefs.PreferenceModule;
+import org.dhis2.data.appinspector.AppInspector;
+import org.dhis2.data.dispatcher.DispatcherModule;
+import org.dhis2.commons.schedulers.SchedulerModule;
+import org.dhis2.commons.schedulers.SchedulersProviderImpl;
 import org.dhis2.data.server.ServerComponent;
 import org.dhis2.data.server.ServerModule;
 import org.dhis2.data.server.UserManager;
@@ -42,10 +37,10 @@ import org.dhis2.uicomponents.map.MapController;
 import org.dhis2.usescases.login.LoginComponent;
 import org.dhis2.usescases.login.LoginContracts;
 import org.dhis2.usescases.login.LoginModule;
-import org.dhis2.usescases.teiDashboard.TeiDashboardComponentFlavor;
+import org.dhis2.usescases.teiDashboard.TeiDashboardComponent;
 import org.dhis2.usescases.teiDashboard.TeiDashboardModule;
 import org.dhis2.utils.analytics.AnalyticsModule;
-import org.dhis2.utils.analytics.matomo.TrackerController;
+import org.dhis2.utils.reporting.CrashReportModule;
 import org.dhis2.utils.session.PinModule;
 import org.dhis2.utils.session.SessionComponent;
 import org.dhis2.utils.timber.DebugTree;
@@ -53,11 +48,6 @@ import org.dhis2.utils.timber.ReleaseTree;
 import org.hisp.dhis.android.core.D2;
 import org.hisp.dhis.android.core.D2Manager;
 import org.jetbrains.annotations.NotNull;
-import org.matomo.sdk.Matomo;
-import org.matomo.sdk.Tracker;
-import org.matomo.sdk.TrackerBuilder;
-import org.matomo.sdk.extra.DownloadTracker;
-import org.matomo.sdk.extra.TrackHelper;
 
 import java.io.IOException;
 import java.net.SocketException;
@@ -65,7 +55,8 @@ import java.net.SocketException;
 import javax.inject.Singleton;
 
 import cat.ereza.customactivityoncrash.config.CaocConfig;
-import io.fabric.sdk.android.Fabric;
+import dhis2.org.analytics.charts.ui.di.AnalyticsFragmentComponent;
+import dhis2.org.analytics.charts.ui.di.AnalyticsFragmentModule;
 import io.reactivex.Scheduler;
 import io.reactivex.android.plugins.RxAndroidPlugins;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -73,20 +64,10 @@ import io.reactivex.exceptions.UndeliverableException;
 import io.reactivex.plugins.RxJavaPlugins;
 import timber.log.Timber;
 
-import static org.acra.ReportField.BUILD_CONFIG;
-import static org.acra.ReportField.DEVICE_FEATURES;
-import static org.acra.ReportField.DISPLAY;
-import static org.acra.ReportField.ENVIRONMENT;
-import static org.acra.ReportField.FILE_PATH;
-import static org.acra.ReportField.INITIAL_CONFIGURATION;
-import static org.acra.ReportField.LOGCAT;
-
 public class App extends MultiDexApplication implements Components, LifecycleObserver {
     static {
         AppCompatDelegate.setCompatVectorFromResourcesEnabled(true);
     }
-
-    protected boolean wantToImportDB = false;
 
     @NonNull
     @Singleton
@@ -106,43 +87,31 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
 
     @Nullable
     @PerActivity
-    private TeiDashboardComponentFlavor dashboardComponent;
+    private TeiDashboardComponent dashboardComponent;
 
     @Nullable
     private SessionComponent sessionComponent;
 
     private boolean fromBackGround = false;
     private boolean recreated;
-    private Tracker matomoTracker;
+    private AppInspector appInspector;
 
     @Override
     public void onCreate() {
         super.onCreate();
 
-        Timber.plant(BuildConfig.DEBUG ? new DebugTree() : new ReleaseTree());
         ProcessLifecycleOwner.get().getLifecycle().addObserver(this);
 
-        if (BuildConfig.DEBUG)
-            Stetho.initializeWithDefaults(this);
+        appInspector = new AppInspector(this).init();
 
         MapController.Companion.init(this, BuildConfig.MAPBOX_ACCESS_TOKEN);
 
-        Fabric.with(this, new Crashlytics());
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP)
-            upgradeSecurityProviderSync();
-
         setUpAppComponent();
-        if (wantToImportDB) {
-            populateDBIfNeeded();
-        }
+        Timber.plant(BuildConfig.DEBUG ? new DebugTree() : new ReleaseTree(appComponent.injectCrashReportController()));
+
         setUpServerComponent();
         setUpRxPlugin();
-        initAcra();
         initCustomCrashActivity();
-        if (getTracker() != null) {
-            TrackHelper.track().download().identifier(new DownloadTracker.Extra.ApkChecksum(this)).with(getTracker());
-        }
     }
 
     private void initCustomCrashActivity() {
@@ -151,56 +120,10 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
                 .apply();
     }
 
-    public synchronized Tracker getTracker() {
-        if (matomoTracker == null) {
-            matomoTracker = TrackerController.Companion.generateTracker(this);
-        }
-        return matomoTracker;
-    }
-
-    private void populateDBIfNeeded() {
-        DBTestLoader dbTestLoader = new DBTestLoader(getApplicationContext());
-        dbTestLoader.copyDatabaseFromAssetsIfNeeded();
-    }
-
-    private void upgradeSecurityProviderSync() {
-        try {
-            ProviderInstaller.installIfNeeded(this);
-            Timber.e("New security provider installed.");
-        } catch (GooglePlayServicesRepairableException | GooglePlayServicesNotAvailableException e) {
-            e.printStackTrace();
-            Timber.e("New security provider install failed.");
-        }
-    }
-
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
         MultiDex.install(this);
-    }
-
-    private void initAcra() {
-        CoreConfigurationBuilder builder = new CoreConfigurationBuilder(this)
-                .setBuildConfigClass(BuildConfig.class)
-                .setReportField(DEVICE_FEATURES, false)
-                .setReportField(ENVIRONMENT, false)
-                .setReportField(INITIAL_CONFIGURATION, false)
-                .setReportField(LOGCAT, false)
-                .setReportField(DISPLAY, false)
-                .setReportField(BUILD_CONFIG, false)
-                .setReportField(FILE_PATH, false)
-                .setAlsoReportToAndroidFramework(true)
-                .setReportFormat(StringFormat.JSON);
-
-        builder.getPluginConfigurationBuilder(HttpSenderConfigurationBuilder.class)
-                .setUri(BuildConfig.ACRA_URL)
-                .setHttpMethod(HttpSender.Method.POST)
-                .setConnectionTimeout(20000)
-                .setBasicAuthLogin(BuildConfig.ACRA_USER)
-                .setBasicAuthPassword(BuildConfig.ACRA_PASSWORD)
-                .setEnabled(true);
-
-        ACRA.init(this, builder);
     }
 
     private void setUpAppComponent() {
@@ -236,7 +159,10 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
                 .schedulerModule(new SchedulerModule(new SchedulersProviderImpl()))
                 .analyticsModule(new AnalyticsModule())
                 .preferenceModule(new PreferenceModule())
-                .workManagerController(new WorkManagerModule());
+                .workManagerController(new WorkManagerModule())
+                .coroutineDispatchers(new DispatcherModule())
+                .crashReportModule(new CrashReportModule())
+                .featureConfigModule(new FeatureConfigModule());
     }
 
     @NonNull
@@ -312,12 +238,11 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
         userComponent = null;
     }
 
-
     ////////////////////////////////////////////////////////////////////////
     // Dashboard component
     ////////////////////////////////////////////////////////////////////////
     @NonNull
-    public TeiDashboardComponentFlavor createDashboardComponent(@NonNull TeiDashboardModule dashboardModule) {
+    public TeiDashboardComponent createDashboardComponent(@NonNull TeiDashboardModule dashboardModule) {
         if (dashboardComponent != null) {
             this.recreated = true;
         }
@@ -326,7 +251,7 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
     }
 
     @Nullable
-    public TeiDashboardComponentFlavor dashboardComponent() {
+    public TeiDashboardComponent dashboardComponent() {
         return dashboardComponent;
     }
 
@@ -390,5 +315,24 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
             }
             Timber.d(e);
         });
+    }
+
+    public AppInspector getAppInspector() {
+        return appInspector;
+    }
+
+    @Override
+    public FeatureConfigActivityComponent provideFeatureConfigActivityComponent() {
+        return userComponent.plus(new FeatureConfigActivityModule());
+    }
+
+    @Override
+    public CalendarPickerComponent provideCalendarPickerComponent() {
+        return userComponent.plus(new CalendarPickerModule());
+    }
+
+    @Override
+    public AnalyticsFragmentComponent provideAnalyticsFragmentComponent(AnalyticsFragmentModule module){
+        return userComponent.plus(module);
     }
 }
