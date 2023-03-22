@@ -11,25 +11,25 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
 import com.nhaarman.mockitokotlin2.whenever
 import io.reactivex.Flowable
-import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.android.plugins.RxAndroidPlugins
 import io.reactivex.schedulers.Schedulers
 import junit.framework.Assert.assertTrue
-import org.dhis2.data.filter.FilterPresenter
-import org.dhis2.data.filter.FilterRepository
+import org.dhis2.commons.data.EventViewModel
+import org.dhis2.commons.data.EventViewModelType
+import org.dhis2.commons.data.ProgramEventViewModel
+import org.dhis2.commons.data.tuples.Pair
+import org.dhis2.commons.filters.DisableHomeFiltersFromSettingsApp
+import org.dhis2.commons.filters.FilterItem
+import org.dhis2.commons.filters.FilterManager
+import org.dhis2.commons.filters.Filters
+import org.dhis2.commons.filters.data.FilterPresenter
+import org.dhis2.commons.filters.data.FilterRepository
+import org.dhis2.commons.filters.sorting.SortingItem
+import org.dhis2.commons.filters.sorting.SortingStatus
+import org.dhis2.commons.filters.workingLists.EventFilterToWorkingListItemMapper
+import org.dhis2.commons.matomo.MatomoAnalyticsController
 import org.dhis2.data.schedulers.TrampolineSchedulerProvider
-import org.dhis2.data.tuples.Pair
-import org.dhis2.usescases.teiDashboard.dashboardfragments.teidata.teievents.EventViewModel
-import org.dhis2.usescases.teiDashboard.dashboardfragments.teidata.teievents.EventViewModelType
-import org.dhis2.utils.analytics.matomo.MatomoAnalyticsController
-import org.dhis2.utils.filters.DisableHomeFiltersFromSettingsApp
-import org.dhis2.utils.filters.FilterItem
-import org.dhis2.utils.filters.FilterManager
-import org.dhis2.utils.filters.Filters
-import org.dhis2.utils.filters.sorting.SortingItem
-import org.dhis2.utils.filters.sorting.SortingStatus
-import org.dhis2.utils.filters.workingLists.EventFilterToWorkingListItemMapper
 import org.hisp.dhis.android.core.category.CategoryCombo
 import org.hisp.dhis.android.core.category.CategoryOptionCombo
 import org.hisp.dhis.android.core.common.FeatureType
@@ -50,7 +50,7 @@ class ProgramEventDetailPresenterTest {
     private val filterRepository: FilterRepository = mock()
     private lateinit var presenter: ProgramEventDetailPresenter
 
-    private val view: ProgramEventDetailContract.View = mock()
+    private val view: ProgramEventDetailView = mock()
     private val repository: ProgramEventDetailRepository = mock()
     private val scheduler = TrampolineSchedulerProvider()
     private val filterManager: FilterManager = FilterManager.getInstance()
@@ -70,7 +70,6 @@ class ProgramEventDetailPresenterTest {
             filterManager,
             workingListMapper,
             filterRepository,
-            filterPresenter,
             disableHomeFilters,
             matomoAnalyticsController
         )
@@ -93,7 +92,7 @@ class ProgramEventDetailPresenterTest {
             Event.builder().uid("event").build(),
             eventCount = 0,
             lastUpdate = null,
-            isSelected = false,
+            isSelected = true,
             canAddNewEvent = true,
             orgUnitName = "orgUnit",
             catComboName = "catComboName",
@@ -118,10 +117,9 @@ class ProgramEventDetailPresenterTest {
             BoundingBox.fromLngLats(0.0, 0.0, 0.0, 0.0)
         )
         filterManager.sortingItem = SortingItem(Filters.ORG_UNIT, SortingStatus.NONE)
-        whenever(repository.featureType()) doReturn Single.just(FeatureType.POINT)
-        whenever(repository.accessDataWrite) doReturn true
+        whenever(repository.getAccessDataWrite()) doReturn true
         whenever(repository.hasAccessToAllCatOptions()) doReturn Single.just(true)
-        whenever(repository.program()) doReturn Observable.just(program)
+        whenever(repository.program()) doReturn Single.just(program)
         whenever(
             repository.filteredProgramEvents(null)
         ) doReturn events
@@ -129,7 +127,6 @@ class ProgramEventDetailPresenterTest {
             repository.filteredEventsForMap()
         ) doReturn Flowable.just(mapData)
         presenter.init()
-        verify(view).setFeatureType(FeatureType.POINT)
         verify(view).setWritePermission(true)
         verify(view).setProgram(program)
     }

@@ -12,8 +12,13 @@ import dagger.Module;
 import dagger.Provides;
 
 @Module
-@PerService
 public class SyncDataWorkerModule {
+
+    @Provides
+    @PerService
+    SyncRepository syncRepository(@NonNull D2 d2) {
+        return new SyncRepositoryImpl(d2);
+    }
 
     @Provides
     @PerService
@@ -21,8 +26,10 @@ public class SyncDataWorkerModule {
             @NonNull D2 d2,
             @NonNull PreferenceProvider preferences,
             @NonNull WorkManagerController workManagerController,
-            @NonNull AnalyticsHelper analyticsHelper
-            ) {
-        return new SyncPresenterImpl(d2, preferences, workManagerController,analyticsHelper);
+            @NonNull AnalyticsHelper analyticsHelper,
+            @NonNull SyncStatusController syncStatusController,
+            @NonNull SyncRepository syncRepository
+    ) {
+        return new SyncPresenterImpl(d2, preferences, workManagerController, analyticsHelper, syncStatusController, syncRepository);
     }
 }

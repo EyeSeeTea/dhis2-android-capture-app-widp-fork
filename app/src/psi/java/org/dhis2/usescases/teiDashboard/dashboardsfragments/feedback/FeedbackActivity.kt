@@ -9,10 +9,10 @@ import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import org.dhis2.App
 import org.dhis2.R
+import org.dhis2.commons.Constants
 import org.dhis2.databinding.ActivityFeedbackBinding
 import org.dhis2.usescases.general.ActivityGlobalAbstract
 import org.dhis2.usescases.teiDashboard.adapters.FeedbackPagerAdapter
-import org.dhis2.utils.Constants
 import javax.inject.Inject
 
 class FeedbackActivity : ActivityGlobalAbstract(), FeedbackPresenter.FeedbackView {
@@ -28,9 +28,9 @@ class FeedbackActivity : ActivityGlobalAbstract(), FeedbackPresenter.FeedbackVie
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
-        teiUid = intent.getStringExtra(Constants.TEI_UID).toString()
-        programUid = intent.getStringExtra(Constants.PROGRAM_UID).toString()
-        enrollmentUid = intent.getStringExtra(Constants.ENROLLMENT_UID).toString()
+        teiUid = intent.getStringExtra(Constants.TEI_UID) ?: ""
+        programUid = intent.getStringExtra(Constants.PROGRAM_UID) ?: ""
+        enrollmentUid = intent.getStringExtra(Constants.ENROLLMENT_UID) ?: ""
 
         if (((applicationContext) as App).userComponent() != null) {
             ((applicationContext) as App).userComponent()!!

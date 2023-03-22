@@ -4,10 +4,16 @@ import io.reactivex.Single
 import org.dhis2.Bindings.profilePicturePath
 import org.dhis2.Bindings.userFriendlyValue
 import org.dhis2.R
-import org.dhis2.utils.resources.ResourceManager
+import org.dhis2.commons.data.RelationshipDirection
+import org.dhis2.commons.data.RelationshipOwnerType
+import org.dhis2.commons.data.RelationshipViewModel
+import org.dhis2.commons.resources.ResourceManager
+import org.dhis2.usescases.teiDashboard.TeiAttributesProvider
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.common.Geometry
+import org.hisp.dhis.android.core.common.State
 import org.hisp.dhis.android.core.event.Event
+import org.hisp.dhis.android.core.organisationunit.OrganisationUnit
 import org.hisp.dhis.android.core.program.ProgramType
 import org.hisp.dhis.android.core.relationship.RelationshipEntityType
 import org.hisp.dhis.android.core.relationship.RelationshipItem
@@ -19,7 +25,8 @@ import org.hisp.dhis.android.core.trackedentity.TrackedEntityInstance
 class RelationshipRepositoryImpl(
     private val d2: D2,
     private val config: RelationshipConfiguration,
-    private val resources: ResourceManager
+    private val resources: ResourceManager,
+    private val teiAttributesProvider: TeiAttributesProvider
 ) : RelationshipRepository {
 
     override fun relationshipTypes(): Single<List<Pair<RelationshipType, String>>> {
@@ -175,6 +182,14 @@ class RelationshipRepositoryImpl(
                         )
                     }
 
+                val canBeOpened = if (direction == RelationshipDirection.FROM) {
+                    tei.syncState() != State.RELATIONSHIP &&
+                        orgUnitInScope(tei.organisationUnit())
+                } else {
+                    event.syncState() != State.RELATIONSHIP &&
+                        orgUnitInScope(event.organisationUnit())
+                }
+
                 RelationshipViewModel(
                     relationship,
                     fromGeometry,
@@ -189,7 +204,8 @@ class RelationshipRepositoryImpl(
                     toProfilePic,
                     fromDefaultPic,
                     toDefaultPic,
-                    getOwnerColor(relationshipOwnerUid, RelationshipOwnerType.TEI)
+                    getOwnerColor(relationshipOwnerUid, RelationshipOwnerType.TEI),
+                    canBeOpened
                 )
             }
         }
@@ -222,6 +238,7 @@ class RelationshipRepositoryImpl(
                 val toProfilePic: String?
                 val fromDefaultPicRes: Int
                 val toDefaultPicRes: Int
+                val canBoOpened: Boolean
 
                 when (teiUid) {
                     relationship.from()?.trackedEntityInstance()?.trackedEntityInstance() -> {
@@ -240,6 +257,8 @@ class RelationshipRepositoryImpl(
                             toValues = getTeiAttributesForRelationship(toTei.uid())
                             toProfilePic = toTei.profilePicturePath(d2, programUid)
                             toDefaultPicRes = getTeiDefaultRes(toTei)
+                            canBoOpened = toTei.syncState() != State.RELATIONSHIP &&
+                                orgUnitInScope(toTei.organisationUnit())
                         } else {
                             relationshipOwnerType = RelationshipOwnerType.EVENT
                             relationshipOwnerUid =
@@ -248,8 +267,10 @@ class RelationshipRepositoryImpl(
                                 .uid(relationshipOwnerUid).blockingGet()
                             toGeometry = toEvent.geometry()
                             toValues = getEventValuesForRelationship(toEvent.uid())
-                            toProfilePic = null
+                            toProfilePic = ""
                             toDefaultPicRes = getEventDefaultRes(toEvent)
+                            canBoOpened = toEvent.syncState() != State.RELATIONSHIP &&
+                                orgUnitInScope(toEvent.organisationUnit())
                         }
                     }
                     relationship.to()?.trackedEntityInstance()?.trackedEntityInstance() -> {
@@ -269,6 +290,8 @@ class RelationshipRepositoryImpl(
                             fromValues = getTeiAttributesForRelationship(fromTei.uid())
                             fromProfilePic = fromTei.profilePicturePath(d2, programUid)
                             fromDefaultPicRes = getTeiDefaultRes(fromTei)
+                            canBoOpened = fromTei.syncState() != State.RELATIONSHIP &&
+                                orgUnitInScope(fromTei.organisationUnit())
                         } else {
                             relationshipOwnerType = RelationshipOwnerType.EVENT
                             relationshipOwnerUid =
@@ -277,8 +300,10 @@ class RelationshipRepositoryImpl(
                                 .uid(relationshipOwnerUid).blockingGet()
                             fromGeometry = fromEvent.geometry()
                             fromValues = getEventValuesForRelationship(fromEvent.uid())
-                            fromProfilePic = null
+                            fromProfilePic = ""
                             fromDefaultPicRes = getEventDefaultRes(fromEvent)
+                            canBoOpened = fromEvent.syncState() != State.RELATIONSHIP &&
+                                orgUnitInScope(fromEvent.organisationUnit())
                         }
                     }
                     else -> return@mapNotNull null
@@ -300,10 +325,25 @@ class RelationshipRepositoryImpl(
                     toProfilePic,
                     fromDefaultPicRes,
                     toDefaultPicRes,
-                    getOwnerColor(relationshipOwnerUid, relationshipOwnerType)
+                    getOwnerColor(relationshipOwnerUid, relationshipOwnerType),
+                    canBoOpened
                 )
             }
         }
+    }
+
+    private fun orgUnitInScope(orgUnitUid: String?): Boolean {
+        return orgUnitUid?.let {
+            val inCaptureScope = d2.organisationUnitModule().organisationUnits()
+                .byOrganisationUnitScope(OrganisationUnit.Scope.SCOPE_DATA_CAPTURE)
+                .uid(orgUnitUid)
+                .blockingExists()
+            val inSearchScope = d2.organisationUnitModule().organisationUnits()
+                .byOrganisationUnitScope(OrganisationUnit.Scope.SCOPE_TEI_SEARCH)
+                .uid(orgUnitUid)
+                .blockingExists()
+            inCaptureScope || inSearchScope
+        } ?: false
     }
 
     private fun getOwnerColor(uid: String, relationshipOwnerType: RelationshipOwnerType): Int {
@@ -330,29 +370,52 @@ class RelationshipRepositoryImpl(
     }
 
     private fun getTeiAttributesForRelationship(teiUid: String): List<Pair<String, String>> {
-        val attrFromType = d2.trackedEntityModule().trackedEntityTypeAttributes()
-            .byDisplayInList().isTrue.blockingGet().mapNotNull {
-                it.trackedEntityAttribute()?.uid() to it
-            }.toMap()
+        val teiTypeUid = d2.trackedEntityModule()
+            .trackedEntityInstances().uid(teiUid).blockingGet().trackedEntityType()
 
-        val attrValuesFromType = d2.trackedEntityModule().trackedEntityAttributeValues()
-            .byTrackedEntityInstance().eq(teiUid)
-            .byTrackedEntityAttribute().`in`(attrFromType.keys.toList())
-            .blockingGet().mapNotNull { attributeValue ->
+        val attrValuesFromType = mutableListOf<Pair<String, String>>()
+        teiAttributesProvider.getValuesFromTrackedEntityTypeAttributes(teiTypeUid, teiUid)
+            .mapNotNull { attributeValue ->
                 val fieldName = d2.trackedEntityModule().trackedEntityAttributes()
-                    .uid(attributeValue.trackedEntityAttribute()).blockingGet().displayFormName()
+                    .uid(attributeValue.trackedEntityAttribute()).blockingGet()
+                    .displayFormName()
                 val value = attributeValue.userFriendlyValue(d2)
                 if (fieldName != null && value != null) {
-                    Pair(fieldName, value)
+                    attrValuesFromType.add(Pair(fieldName, value))
                 } else {
                     null
                 }
             }
 
-        return if (attrValuesFromType.isNotEmpty()) {
-            attrValuesFromType
-        } else {
-            listOf(Pair("uid", teiUid))
+        val attrValueFromProgramTrackedEntityAttribute = mutableListOf<Pair<String, String>>()
+        val teiTypeName = d2.trackedEntityModule().trackedEntityTypes()
+            .uid(teiTypeUid).blockingGet().name()!!
+
+        if (attrValuesFromType.isEmpty()) {
+            teiAttributesProvider.getValuesFromProgramTrackedEntityAttributes(teiTypeUid, teiUid)
+                .mapNotNull { attributeValue ->
+                    val fieldName = d2.trackedEntityModule().trackedEntityAttributes()
+                        .uid(attributeValue.trackedEntityAttribute())
+                        .blockingGet().displayFormName()
+                    val value = attributeValue.userFriendlyValue(d2)
+                    if (fieldName != null && value != null) {
+                        attrValueFromProgramTrackedEntityAttribute.add(Pair(fieldName, value))
+                    } else {
+                        null
+                    }
+                }
+        }
+
+        return when {
+            attrValuesFromType.isNotEmpty() -> {
+                attrValuesFromType
+            }
+            attrValuesFromType.isEmpty() -> {
+                attrValueFromProgramTrackedEntityAttribute
+            }
+            else -> {
+                listOf(Pair("uid", teiTypeName))
+            }
         }
     }
 

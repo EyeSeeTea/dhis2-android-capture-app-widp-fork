@@ -9,8 +9,9 @@ import com.nhaarman.mockitokotlin2.whenever
 import io.reactivex.Single
 import org.dhis2.commons.schedulers.SchedulerProvider
 import org.dhis2.data.schedulers.TrampolineSchedulerProvider
-import org.dhis2.uicomponents.map.geometry.mapper.featurecollection.MapRelationshipsToFeatureCollection
-import org.dhis2.uicomponents.map.mapper.MapRelationshipToRelationshipMapModel
+import org.dhis2.maps.geometry.mapper.featurecollection.MapRelationshipsToFeatureCollection
+import org.dhis2.maps.mapper.MapRelationshipToRelationshipMapModel
+import org.dhis2.maps.usecases.MapStyleConfiguration
 import org.dhis2.utils.analytics.AnalyticsHelper
 import org.dhis2.utils.analytics.CLICK
 import org.dhis2.utils.analytics.DELETE_RELATIONSHIP
@@ -40,6 +41,11 @@ class RelationshipPresenterTest {
     private val analyticsHelper: AnalyticsHelper = mock()
     private val mapRelationshipToRelationshipMapModel = MapRelationshipToRelationshipMapModel()
     private val mapRelationshipsToFeatureCollection: MapRelationshipsToFeatureCollection = mock()
+    private val relationshipConstrain: RelationshipConstraint = mock()
+    private val relationshipType: RelationshipType = mock {
+        on { fromConstraint() } doReturn relationshipConstrain
+    }
+    private val mapStyleConfiguration: MapStyleConfiguration = mock()
 
     @Before
     fun setup() {
@@ -49,6 +55,10 @@ class RelationshipPresenterTest {
                 .uid("teiUid")
                 .blockingGet().trackedEntityType()
         ) doReturn "teiType"
+        whenever(
+            d2.eventModule().events()
+                .uid("eventUid").blockingGet().programStage()
+        ) doReturn "programStageUid"
         presenter = RelationshipPresenter(
             view,
             d2,
@@ -59,8 +69,8 @@ class RelationshipPresenterTest {
             schedulerProvider,
             analyticsHelper,
             mapRelationshipToRelationshipMapModel,
-            mapRelationshipsToFeatureCollection
-
+            mapRelationshipsToFeatureCollection,
+            mapStyleConfiguration
         )
     }
 
@@ -81,12 +91,10 @@ class RelationshipPresenterTest {
     @Test
     fun `If user has permission should create a new relationship`() {
         whenever(
-            d2.programModule().programs()
-                .uid("programUid")
-                .blockingGet()
-        ) doReturn getMockedProgram(true)
+            d2.relationshipModule().relationshipService().hasAccessPermission(relationshipType)
+        ) doReturn true
 
-        presenter.goToAddRelationship("teiType")
+        presenter.goToAddRelationship("teiType", relationshipType)
 
         verify(view, times(1)).goToAddRelationship("teiUid", "teiType")
         verify(view, times(0)).showPermissionError()
@@ -95,12 +103,10 @@ class RelationshipPresenterTest {
     @Test
     fun `If user don't have permission should show an error`() {
         whenever(
-            d2.programModule().programs()
-                .uid("programUid")
-                .blockingGet()
-        ) doReturn getMockedProgram(false)
+            d2.relationshipModule().relationshipService().hasAccessPermission(relationshipType)
+        ) doReturn false
 
-        presenter.goToAddRelationship("teiType")
+        presenter.goToAddRelationship("teiType", relationshipType)
 
         verify(view, times(1)).showPermissionError()
     }

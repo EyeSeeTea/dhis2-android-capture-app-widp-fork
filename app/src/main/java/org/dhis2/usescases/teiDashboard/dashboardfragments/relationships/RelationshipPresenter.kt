@@ -3,11 +3,13 @@ package org.dhis2.usescases.teiDashboard.dashboardfragments.relationships
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.processors.FlowableProcessor
 import io.reactivex.processors.PublishProcessor
-import java.util.ArrayList
+import org.dhis2.commons.data.RelationshipOwnerType
+import org.dhis2.commons.data.tuples.Trio
 import org.dhis2.commons.schedulers.SchedulerProvider
-import org.dhis2.data.tuples.Trio
-import org.dhis2.uicomponents.map.geometry.mapper.featurecollection.MapRelationshipsToFeatureCollection
-import org.dhis2.uicomponents.map.mapper.MapRelationshipToRelationshipMapModel
+import org.dhis2.maps.geometry.mapper.featurecollection.MapRelationshipsToFeatureCollection
+import org.dhis2.maps.layer.basemaps.BaseMapStyle
+import org.dhis2.maps.mapper.MapRelationshipToRelationshipMapModel
+import org.dhis2.maps.usecases.MapStyleConfiguration
 import org.dhis2.utils.analytics.AnalyticsHelper
 import org.dhis2.utils.analytics.CLICK
 import org.dhis2.utils.analytics.DELETE_RELATIONSHIP
@@ -29,7 +31,8 @@ class RelationshipPresenter internal constructor(
     private val schedulerProvider: SchedulerProvider,
     private val analyticsHelper: AnalyticsHelper,
     private val mapRelationshipToRelationshipMapModel: MapRelationshipToRelationshipMapModel,
-    private val mapRelationshipsToFeatureCollection: MapRelationshipsToFeatureCollection
+    private val mapRelationshipsToFeatureCollection: MapRelationshipsToFeatureCollection,
+    private val mapStyleConfig: MapStyleConfiguration
 ) {
 
     private val compositeDisposable: CompositeDisposable = CompositeDisposable()
@@ -38,6 +41,9 @@ class RelationshipPresenter internal constructor(
             .withTrackedEntityAttributeValues()
             .uid(teiUid)
             .blockingGet()?.trackedEntityType()
+    private val programStageUid =
+        d2.eventModule().events().uid(eventUid).blockingGet()?.programStage()
+
     var updateRelationships: FlowableProcessor<Boolean> = PublishProcessor.create()
 
     fun init() {
@@ -80,10 +86,14 @@ class RelationshipPresenter internal constructor(
         )
     }
 
-    fun goToAddRelationship(teiTypeToAdd: String) {
-        if (d2.programModule()
-            .programs().uid(programUid).blockingGet()!!.access().data().write()!!
-        ) {
+    fun goToAddRelationship(
+        teiTypeToAdd: String,
+        relationshipType: RelationshipType
+    ) {
+        val writeAccess =
+            d2.relationshipModule().relationshipService().hasAccessPermission(relationshipType)
+
+        if (writeAccess) {
             analyticsHelper.setEvent(NEW_RELATIONSHIP, CLICK, NEW_RELATIONSHIP)
             if (teiUid != null) {
                 view.goToAddRelationship(teiUid, teiTypeToAdd)
@@ -120,25 +130,9 @@ class RelationshipPresenter internal constructor(
         selectedTei: String,
         relationshipTypeUid: String
     ) {
-        val relationshipType =
-            d2.relationshipModule().relationshipTypes().withConstraints().uid(relationshipTypeUid)
-                .blockingGet()
-
-        val fromTei: String
-        val toTei: String
-        if (relationshipType!!.bidirectional()!! &&
-            relationshipType.toConstraint()!!.trackedEntityType()!!.uid() == teiType
-        ) {
-            fromTei = selectedTei
-            toTei = teiUid
-        } else {
-            fromTei = teiUid
-            toTei = selectedTei
-        }
-
         try {
             val relationship =
-                RelationshipHelper.teiToTeiRelationship(fromTei, toTei, relationshipTypeUid)
+                RelationshipHelper.teiToTeiRelationship(teiUid, selectedTei, relationshipTypeUid)
             d2.relationshipModule().relationships().blockingAdd(relationship)
         } catch (e: D2Error) {
             view.displayMessage(e.errorDescription())
@@ -177,13 +171,13 @@ class RelationshipPresenter internal constructor(
             } else {
                 view.showTeiWithoutEnrollmentError(
                     d2.trackedEntityModule()
-                        .trackedEntityTypes().uid(teiType).blockingGet()!!.displayName() ?: ""
+                        .trackedEntityTypes().uid(teiType).blockingGet()?.displayName() ?: ""
                 )
             }
         } else {
             view.showRelationshipNotFoundError(
                 d2.trackedEntityModule()
-                    .trackedEntityTypes().uid(teiType).blockingGet()!!.displayName() ?: ""
+                    .trackedEntityTypes().uid(teiType).blockingGet()?.displayName() ?: ""
             )
         }
     }
@@ -208,5 +202,9 @@ class RelationshipPresenter internal constructor(
             )
             RelationshipOwnerType.TEI -> openDashboard(ownerUid)
         }
+    }
+
+    fun fetchMapStyles(): List<BaseMapStyle> {
+        return mapStyleConfig.fetchMapStyles()
     }
 }

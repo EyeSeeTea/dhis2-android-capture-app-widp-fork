@@ -1,8 +1,11 @@
 package org.dhis2.form.model
 
-import org.dhis2.form.ui.RecyclerViewUiEvents
+import org.dhis2.form.ui.event.RecyclerViewUiEvents
+import org.dhis2.form.ui.event.UiEventFactory
 import org.dhis2.form.ui.intent.FormIntent
 import org.dhis2.form.ui.style.FormUiModelStyle
+import org.hisp.dhis.android.core.common.ValueType
+import org.hisp.dhis.android.core.option.Option
 
 interface FieldUiModel {
 
@@ -24,9 +27,49 @@ interface FieldUiModel {
 
     val label: String
 
+    val formattedLabel: String
+
     val programStageSection: String?
 
     val style: FormUiModelStyle?
+
+    val hint: String?
+
+    val description: String?
+
+    val valueType: ValueType?
+
+    val legend: LegendValue?
+
+    val optionSet: String?
+
+    val allowFutureDates: Boolean?
+
+    val uiEventFactory: UiEventFactory?
+
+    val displayName: String?
+
+    val textColor: Int?
+
+    val backGroundColor: Pair<Array<Int>, Int>?
+
+    val renderingType: UiRenderType?
+
+    var optionSetConfiguration: OptionSetConfiguration?
+
+    val hasImage: Boolean
+
+    val keyboardActionType: KeyboardActionType?
+
+    val fieldMask: String?
+
+    val isAffirmativeChecked: Boolean
+
+    val isNegativeChecked: Boolean
+
+    val isLoadingData: Boolean
+
+    val url: String?
 
     fun setCallback(callback: Callback)
 
@@ -36,9 +79,25 @@ interface FieldUiModel {
 
     fun onNext()
 
-    fun onTextChange(value: String?)
+    fun onTextChange(value: CharSequence?)
+
+    fun onDescriptionClick()
+
+    fun onClear()
+
+    fun onSave(value: String?)
+
+    fun onSaveBoolean(boolean: Boolean)
+
+    fun onSaveOption(option: Option)
+
+    fun invokeUiEvent(uiEventType: UiEventType)
+
+    fun invokeIntent(intent: FormIntent)
 
     fun setValue(value: String?): FieldUiModel
+
+    fun setIsLoadingData(isLoadingData: Boolean): FieldUiModel
 
     fun setFocus(): FieldUiModel
 
@@ -46,18 +105,22 @@ interface FieldUiModel {
 
     fun setEditable(editable: Boolean): FieldUiModel
 
-    fun hasLegend(): Boolean
-
     fun setLegend(legendValue: LegendValue?): FieldUiModel
-
-    fun getOptionSet(): String?
 
     fun setWarning(warning: String): FieldUiModel
 
     fun setFieldMandatory(): FieldUiModel
 
+    fun setDisplayName(displayName: String?): FieldUiModel
+
+    fun setKeyBoardActionDone(): FieldUiModel
+
     interface Callback {
         fun intent(intent: FormIntent)
         fun recyclerViewUiEvents(uiEvent: RecyclerViewUiEvents)
     }
+
+    fun isSection() = valueType == null
+
+    fun isSectionWithFields(): Boolean
 }

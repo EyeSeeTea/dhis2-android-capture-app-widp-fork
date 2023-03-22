@@ -5,11 +5,13 @@ import android.widget.DatePicker;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.dhis2.commons.date.Period;
 import org.dhis2.commons.dialogs.calendarpicker.CalendarPicker;
 import org.dhis2.commons.dialogs.calendarpicker.OnDatePickerListener;
+import org.dhis2.commons.filters.FilterManager;
+import org.dhis2.usescases.datasets.datasetInitial.DateRangeInputPeriodModel;
 import org.dhis2.usescases.general.ActivityGlobalAbstract;
 import org.dhis2.utils.customviews.RxDateDialog;
-import org.dhis2.utils.filters.FilterManager;
 import org.hisp.dhis.android.core.dataset.DataInputPeriod;
 import org.hisp.dhis.android.core.event.EventStatus;
 import org.hisp.dhis.android.core.period.DatePeriod;
@@ -42,6 +44,7 @@ public class DateUtils {
         return instance;
     }
 
+    public static final String DATABASE_FORMAT_EXPRESSION_MILLIS = "yyyy-MM-dd'T'HH:mm:ss.SSS";
     public static final String DATABASE_FORMAT_EXPRESSION = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     public static final String DATABASE_FORMAT_EXPRESSION_NO_MILLIS = "yyyy-MM-dd'T'HH:mm:ss";
     public static final String DATABASE_FORMAT_EXPRESSION_NO_SECONDS = "yyyy-MM-dd'T'HH:mm";
@@ -51,6 +54,7 @@ public class DateUtils {
     public static final String MONTHLY_FORMAT_EXPRESSION = "MMM yyyy";
     public static final String YEARLY_FORMAT_EXPRESSION = "yyyy";
     public static final String SIMPLE_DATE_FORMAT = "d/M/yyyy";
+    public static final String TIME_24H_EXPRESSION = "HH:mm";
 
     public Date[] getDateFromDateAndPeriod(Date date, Period period) {
         switch (period) {
@@ -192,12 +196,17 @@ public class DateUtils {
 
     @NonNull
     public static SimpleDateFormat timeFormat() {
-        return new SimpleDateFormat("HH:mm", Locale.US);
+        return new SimpleDateFormat(TIME_24H_EXPRESSION, Locale.US);
     }
 
     @NonNull
     public static SimpleDateFormat dateTimeFormat() {
         return new SimpleDateFormat(DATE_TIME_FORMAT_EXPRESSION, Locale.US);
+    }
+
+    @NonNull
+    public static SimpleDateFormat databaseDateFormatMillis() {
+        return new SimpleDateFormat(DATABASE_FORMAT_EXPRESSION_MILLIS, Locale.US);
     }
 
     @NonNull
@@ -700,11 +709,11 @@ public class DateUtils {
         return calendar.getTime();
     }
 
-    private int weekOfTheYear(PeriodType periodType,String periodId){
+    private int weekOfTheYear(PeriodType periodType, String periodId) {
         Pattern pattern = Pattern.compile(periodType.getPattern());
         Matcher matcher = pattern.matcher(periodId);
         int weekNumber = 0;
-        if(matcher.find()){
+        if (matcher.find()) {
             weekNumber = Integer.parseInt(matcher.group(2));
         }
         return weekNumber;
@@ -788,6 +797,26 @@ public class DateUtils {
                 && Calendar.getInstance().getTime().getTime() < dataInputPeriodModel.closingDate().getTime();
     }
 
+    public Boolean isInsideFutureInputPeriod(DateRangeInputPeriodModel inputPeriod, Integer futureOpenDays) {
+        if (futureOpenDays != null && futureOpenDays > 0) {
+            boolean isInside = false;
+
+            Date today = DateUtils.getInstance().getToday();
+            Date inputPeriodOpeningDate = inputPeriod.endPeriodDate();
+
+            long diffInMillis = Math.abs(inputPeriodOpeningDate.getTime() - today.getTime());
+            long diffInDays = TimeUnit.DAYS.convert(diffInMillis, TimeUnit.MILLISECONDS);
+
+
+            if (diffInDays < futureOpenDays) {
+                isInside = true;
+            }
+            return isInside;
+        } else {
+            return false;
+        }
+    }
+
     public List<DatePeriod> getDatePeriodListFor(List<Date> selectedDates, Period period) {
         List<DatePeriod> datePeriods = new ArrayList<>();
         for (Date date : selectedDates) {
@@ -808,7 +837,8 @@ public class DateUtils {
         dialog.isFutureDatesAllowed(true);
         dialog.setListener(new OnDatePickerListener() {
             @Override
-            public void onNegativeClick() { }
+            public void onNegativeClick() {
+            }
 
             @Override
             public void onPositiveClick(@NotNull DatePicker datePicker) {
@@ -833,7 +863,8 @@ public class DateUtils {
         dialog.isFutureDatesAllowed(true);
         dialog.setListener(new OnDatePickerListener() {
             @Override
-            public void onNegativeClick() { }
+            public void onNegativeClick() {
+            }
 
             @Override
             public void onPositiveClick(@NotNull DatePicker datePicker) {

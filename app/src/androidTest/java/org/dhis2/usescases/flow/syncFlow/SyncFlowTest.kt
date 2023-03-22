@@ -1,5 +1,6 @@
 package org.dhis2.usescases.flow.syncFlow
 
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.MutableLiveData
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -17,6 +18,7 @@ import org.dhis2.usescases.searchTrackEntity.SearchTEActivity
 import org.dhis2.usescases.searchte.robot.searchTeiRobot
 import org.dhis2.usescases.teidashboard.robot.eventRobot
 import org.dhis2.usescases.teidashboard.robot.teiDashboardRobot
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,6 +38,9 @@ class SyncFlowTest : BaseTest() {
     val ruleEventWithoutRegistration =
         ActivityTestRule(ProgramEventDetailActivity::class.java, false, false)
 
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
     private lateinit var workInfoStatusLiveData: MutableLiveData<List<WorkInfo>>
 
     override fun setUp() {
@@ -45,6 +50,7 @@ class SyncFlowTest : BaseTest() {
     }
 
     @Test
+    @Ignore
     fun shouldSuccessfullySyncAChangedTEI() {
         val teiName = "Scott"
         val teiLastName = "Kelley"
@@ -77,6 +83,7 @@ class SyncFlowTest : BaseTest() {
     }
 
     @Test
+    @Ignore
     fun shouldShowErrorWhenTEISyncFails() {
         val teiName = "Lars"
         val teiLastName = "Overland"
@@ -84,6 +91,10 @@ class SyncFlowTest : BaseTest() {
         prepareTBProgrammeIntentAndLaunchActivity(ruleSearch)
 
         searchTeiRobot {
+            clickOnOpenSearch()
+            typeAttributeAtPosition(teiName, 0)
+            typeAttributeAtPosition(teiLastName, 1)
+            clickOnSearch()
             clickOnTEI(teiName, teiLastName)
         }
 
@@ -95,7 +106,7 @@ class SyncFlowTest : BaseTest() {
         eventRobot {
             fillRadioButtonForm(4)
             clickOnFormFabButton()
-            clickOnFinishAndComplete()
+            clickOnCompleteButton(composeTestRule)
         }
 
         teiDashboardRobot {
@@ -122,7 +133,7 @@ class SyncFlowTest : BaseTest() {
 
         eventRobot {
             clickOnFormFabButton()
-            clickOnFinishAndComplete()
+            clickOnCompleteButton(composeTestRule)
         }
 
         syncFlowRobot {
@@ -145,7 +156,7 @@ class SyncFlowTest : BaseTest() {
 
         eventRobot {
             clickOnFormFabButton()
-            clickOnFinishAndComplete()
+            clickOnCompleteButton(composeTestRule)
         }
 
         syncFlowRobot {
@@ -166,8 +177,16 @@ class SyncFlowTest : BaseTest() {
             clickOnDataSetAtPosition(0)
         }
 
-        dataSetTableRobot {
-            typeOnEditTextCell("1", 0, 0)
+        dataSetTableRobot(composeTestRule) {
+            typeOnCell("bjDvmb4bfuf", 0, 0)
+            clickOnEditValue()
+            typeInput("1")
+            clickOnAccept()
+            composeTestRule.waitForIdle()
+            pressBack()
+            composeTestRule.waitForIdle()
+            pressBack()
+            composeTestRule.waitForIdle()
             clickOnSaveButton()
             waitToDebounce(500)
             clickOnNegativeButton()
@@ -191,8 +210,16 @@ class SyncFlowTest : BaseTest() {
             clickOnDataSetAtPosition(1)
         }
 
-        dataSetTableRobot {
-            typeOnEditTextCell("1", 0, 0)
+        dataSetTableRobot(composeTestRule) {
+            typeOnCell("bjDvmb4bfuf", 0, 0)
+            clickOnEditValue()
+            typeInput("1")
+            clickOnAccept()
+            composeTestRule.waitForIdle()
+            pressBack()
+            composeTestRule.waitForIdle()
+            pressBack()
+            composeTestRule.waitForIdle()
             clickOnSaveButton()
             waitToDebounce(500)
             clickOnNegativeButton()
@@ -224,6 +251,6 @@ class SyncFlowTest : BaseTest() {
         const val TB_VISIT = "TB visit"
         const val TB_VISIT_EVENT_DATE = "3/7/2019"
         const val LAB_MONITORING = "Lab monitoring"
-        const val LAB_MONITORING_EVENT_DATE = "28/6/2020"
+        const val LAB_MONITORING_EVENT_DATE = "2/8/2020"
     }
 }

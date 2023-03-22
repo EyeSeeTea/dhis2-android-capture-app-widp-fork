@@ -9,13 +9,15 @@ import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.work.Data;
+import androidx.work.ForegroundInfo;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 import org.dhis2.App;
 import org.dhis2.R;
+import org.dhis2.commons.network.NetworkUtils;
 import org.dhis2.commons.prefs.PreferenceProvider;
-import org.dhis2.utils.Constants;
+import org.dhis2.commons.Constants;
 import org.dhis2.utils.DateUtils;
 
 import java.util.Calendar;
@@ -47,8 +49,9 @@ public class SyncDataWorker extends Worker {
     @NonNull
     @Override
     public Result doWork() {
-
         Objects.requireNonNull(((App) getApplicationContext()).userComponent()).plus(new SyncDataWorkerModule()).inject(this);
+
+        presenter.initSyncControllerMap();
 
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
@@ -61,51 +64,54 @@ public class SyncDataWorker extends Worker {
 
         long init = System.currentTimeMillis();
 
-        try {
-            presenter.uploadResources();
-        } catch (Exception e) {
-            Timber.e(e);
-        }
-
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
-                "Syncing events",
+                getApplicationContext().getString(R.string.syncing_events),
                 25);
 
         try {
             presenter.syncAndDownloadEvents();
         } catch (Exception e) {
+            if(!new NetworkUtils(getApplicationContext()).isOnline()){
+                presenter.setNetworkUnavailable();
+            }
             Timber.e(e);
             isEventOk = false;
         }
 
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
-                "Syncing tracked entities",
+                getApplicationContext().getString(R.string.syncing_teis),
                 50);
 
         try {
             presenter.syncAndDownloadTeis();
         } catch (Exception e) {
+            if(!new NetworkUtils(getApplicationContext()).isOnline()){
+                presenter.setNetworkUnavailable();
+            }
             Timber.e(e);
             isTeiOk = false;
         }
 
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
-                "Syncing data sets",
+                getApplicationContext().getString(R.string.syncing_data_sets),
                 75);
 
         try {
             presenter.syncAndDownloadDataValues();
         } catch (Exception e) {
+            if(!new NetworkUtils(getApplicationContext()).isOnline()){
+                presenter.setNetworkUnavailable();
+            }
             Timber.e(e);
             isDataValue = false;
         }
 
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
-                "Syncing resources",
+                getApplicationContext().getString(R.string.syncing_resources),
                 90);
 
         try {
@@ -116,7 +122,7 @@ public class SyncDataWorker extends Worker {
 
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
-                "Syncing done",
+                getApplicationContext().getString(R.string.syncing_done),
                 100);
 
         presenter.logTimeToFinish(System.currentTimeMillis() - init, DATA_TIME);
@@ -132,7 +138,15 @@ public class SyncDataWorker extends Worker {
 
         presenter.startPeriodicDataWork();
 
+        presenter.finishSync();
+
         return Result.success(createOutputData(true));
+    }
+
+    @Override
+    public void onStopped() {
+        cancelNotification();
+        super.onStopped();
     }
 
     private Data createOutputData(boolean state) {
@@ -160,7 +174,8 @@ public class SyncDataWorker extends Worker {
                         .setProgress(100, progress, false)
                         .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
-        notificationManager.notify(SyncDataWorker.SYNC_DATA_ID, notificationBuilder.build());
+        setForegroundAsync(new ForegroundInfo(SyncDataWorker.SYNC_DATA_ID, notificationBuilder.build()));
+
     }
 
     private void cancelNotification() {

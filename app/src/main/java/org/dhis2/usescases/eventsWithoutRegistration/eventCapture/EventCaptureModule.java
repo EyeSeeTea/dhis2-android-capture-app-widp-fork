@@ -4,31 +4,28 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
-import org.dhis2.Bindings.ValueTypeExtensionsKt;
 import org.dhis2.R;
+import org.dhis2.commons.data.EntryMode;
 import org.dhis2.commons.di.dagger.PerActivity;
-import org.dhis2.commons.featureconfig.data.FeatureConfigRepository;
+import org.dhis2.commons.network.NetworkUtils;
 import org.dhis2.commons.prefs.PreferenceProvider;
+import org.dhis2.commons.reporting.CrashReportController;
+import org.dhis2.commons.reporting.CrashReportControllerImpl;
+import org.dhis2.commons.resources.ResourceManager;
+import org.dhis2.commons.schedulers.SchedulerProvider;
 import org.dhis2.data.dhislogic.DhisEnrollmentUtils;
 import org.dhis2.data.forms.EventRepository;
 import org.dhis2.data.forms.FormRepository;
-import org.dhis2.data.forms.RulesRepository;
-import org.dhis2.data.forms.dataentry.DataEntryStore;
-import org.dhis2.data.forms.dataentry.FormUiModelColorFactoryImpl;
 import org.dhis2.data.forms.dataentry.RuleEngineRepository;
-import org.dhis2.data.forms.dataentry.ValueStore;
-import org.dhis2.data.forms.dataentry.ValueStoreImpl;
-import org.dhis2.data.forms.dataentry.fields.FieldViewModelFactory;
-import org.dhis2.data.forms.dataentry.fields.FieldViewModelFactoryImpl;
-import org.dhis2.commons.schedulers.SchedulerProvider;
-import org.dhis2.form.data.FormRepositoryPersistenceImpl;
+import org.dhis2.data.forms.dataentry.SearchTEIRepository;
+import org.dhis2.data.forms.dataentry.SearchTEIRepositoryImpl;
+import org.dhis2.form.data.FormValueStore;
+import org.dhis2.form.data.RulesRepository;
 import org.dhis2.form.model.RowAction;
-import org.dhis2.form.ui.style.FormUiColorFactory;
-import org.dhis2.form.ui.validation.FieldErrorMessageProvider;
-import org.dhis2.utils.RulesUtilsProvider;
+import org.dhis2.form.ui.FieldViewModelFactory;
+import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.domain.ConfigureEventCompletionDialog;
+import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.provider.EventCaptureResourcesProvider;
 import org.dhis2.utils.customviews.navigationbar.NavigationPageConfigurator;
-import org.dhis2.utils.reporting.CrashReportController;
-import org.dhis2.utils.resources.ResourceManager;
 import org.hisp.dhis.android.core.D2;
 
 import dagger.Module;
@@ -36,33 +33,30 @@ import dagger.Provides;
 import io.reactivex.processors.FlowableProcessor;
 import io.reactivex.processors.PublishProcessor;
 
-@PerActivity
 @Module
 public class EventCaptureModule {
 
     private final String eventUid;
     private final EventCaptureContract.View view;
-    private final Context activityContext;
 
-    public EventCaptureModule(EventCaptureContract.View view, String eventUid, Context context) {
+    public EventCaptureModule(EventCaptureContract.View view, String eventUid) {
         this.view = view;
         this.eventUid = eventUid;
-        this.activityContext = context;
     }
 
     @Provides
     @PerActivity
     EventCaptureContract.Presenter providePresenter(@NonNull EventCaptureContract.EventCaptureRepository eventCaptureRepository,
-                                                    @NonNull RulesUtilsProvider ruleUtils,
-                                                    @NonNull ValueStore valueStore,
                                                     SchedulerProvider schedulerProvider,
                                                     PreferenceProvider preferences,
-                                                    GetNextVisibleSection getNextVisibleSection,
-                                                    EventFieldMapper fieldMapper,
-                                                    FlowableProcessor<RowAction> onFieldActionProcessor,
-                                                    FieldViewModelFactory fieldFactory) {
-        return new EventCapturePresenterImpl(view, eventUid, eventCaptureRepository, ruleUtils, valueStore, schedulerProvider,
-                preferences, getNextVisibleSection, fieldMapper, onFieldActionProcessor, fieldFactory.sectionProcessor());
+                                                    ConfigureEventCompletionDialog configureEventCompletionDialog) {
+        return new EventCapturePresenterImpl(
+                view,
+                eventUid,
+                eventCaptureRepository,
+                schedulerProvider,
+                preferences,
+                configureEventCompletionDialog);
     }
 
     @Provides
@@ -73,24 +67,8 @@ public class EventCaptureModule {
 
     @Provides
     @PerActivity
-    EventCaptureContract.EventCaptureRepository provideRepository(FieldViewModelFactory fieldFactory,
-                                                                  RuleEngineRepository ruleEngineRepository,
-                                                                  D2 d2,
-                                                                  ResourceManager resourceManager
-    ) {
-        return new EventCaptureRepositoryImpl(fieldFactory, ruleEngineRepository, eventUid, d2, resourceManager);
-    }
-
-    @Provides
-    @PerActivity
-    FieldViewModelFactory fieldFactory(Context context, FormUiColorFactory colorFactory) {
-        return new FieldViewModelFactoryImpl(ValueTypeExtensionsKt.valueTypeHintMap(context), false, colorFactory);
-    }
-
-    @Provides
-    @PerActivity
-    FormUiColorFactory provideFormUiColorFactory() {
-        return new FormUiModelColorFactoryImpl(activityContext, true);
+    EventCaptureContract.EventCaptureRepository provideRepository(D2 d2) {
+        return new EventCaptureRepositoryImpl(eventUid, d2);
     }
 
     @Provides
@@ -114,20 +92,27 @@ public class EventCaptureModule {
 
     @Provides
     @PerActivity
-    ValueStore valueStore(@NonNull D2 d2, CrashReportController crashReportController) {
-        return new ValueStoreImpl(
+    FormValueStore valueStore(
+            @NonNull D2 d2,
+            CrashReportController crashReportController,
+            NetworkUtils networkUtils,
+            ResourceManager resourceManager
+    ) {
+        return new FormValueStore(
                 d2,
                 eventUid,
-                DataEntryStore.EntryMode.DE,
-                new DhisEnrollmentUtils(d2),
-                crashReportController
+                EntryMode.DE,
+                null,
+                crashReportController,
+                networkUtils,
+                resourceManager
         );
     }
 
     @Provides
     @PerActivity
-    GetNextVisibleSection getNextVisibleSection() {
-        return new GetNextVisibleSection();
+    SearchTEIRepository searchTEIRepository(D2 d2) {
+        return new SearchTEIRepositoryImpl(d2, new DhisEnrollmentUtils(d2), new CrashReportControllerImpl());
     }
 
     @Provides
@@ -138,28 +123,25 @@ public class EventCaptureModule {
 
     @Provides
     @PerActivity
-    org.dhis2.form.data.FormRepository provideEventsFormRepository(
-            @NonNull D2 d2,
-            CrashReportController crashReportController
+    NavigationPageConfigurator pageConfigurator(
+            EventCaptureContract.EventCaptureRepository repository
     ) {
-        return new FormRepositoryPersistenceImpl(
-                new ValueStoreImpl(
-                        d2,
-                        eventUid,
-                        DataEntryStore.EntryMode.DE,
-                        new DhisEnrollmentUtils(d2),
-                        crashReportController
-                ),
-                new FieldErrorMessageProvider(activityContext)
-        );
+        return new EventPageConfigurator(repository);
     }
 
     @Provides
     @PerActivity
-    NavigationPageConfigurator pageConfigurator(
-            EventCaptureContract.EventCaptureRepository repository,
-            FeatureConfigRepository featureRepository
+    ConfigureEventCompletionDialog provideConfigureEventCompletionDialog(
+            EventCaptureResourcesProvider eventCaptureResourcesProvider
     ) {
-        return new EventPageConfigurator(repository, featureRepository);
+        return new ConfigureEventCompletionDialog(eventCaptureResourcesProvider);
+    }
+
+    @Provides
+    @PerActivity
+    EventCaptureResourcesProvider provideEventCaptureResourcesProvider(
+            ResourceManager resourceManager
+    ) {
+        return new EventCaptureResourcesProvider(resourceManager);
     }
 }

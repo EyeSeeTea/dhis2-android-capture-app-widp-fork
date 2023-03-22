@@ -1,23 +1,25 @@
 package org.dhis2.usescases.datasets.datasetDetail;
 
+import static org.dhis2.commons.matomo.Actions.GRANULAR_SYNC;
+import static org.dhis2.commons.matomo.Actions.OPEN_ANALYTICS;
+import static org.dhis2.commons.matomo.Categories.DATASET_LIST;
+import static org.dhis2.commons.matomo.Labels.CLICK;
+
 import androidx.annotation.VisibleForTesting;
 
-import org.dhis2.data.filter.FilterRepository;
 import org.dhis2.commons.schedulers.SchedulerProvider;
-import org.dhis2.utils.analytics.matomo.MatomoAnalyticsController;
-import org.dhis2.utils.filters.DisableHomeFiltersFromSettingsApp;
-import org.dhis2.utils.filters.FilterItem;
-import org.dhis2.utils.filters.FilterManager;
+import org.dhis2.commons.filters.data.FilterRepository;
+import org.dhis2.commons.filters.DisableHomeFiltersFromSettingsApp;
+import org.dhis2.commons.filters.FilterItem;
+import org.dhis2.commons.filters.FilterManager;
+import org.dhis2.commons.matomo.MatomoAnalyticsController;
+import org.hisp.dhis.android.core.organisationunit.OrganisationUnit;
 
 import java.util.List;
 
 import io.reactivex.Flowable;
 import io.reactivex.disposables.CompositeDisposable;
 import timber.log.Timber;
-
-import static org.dhis2.utils.analytics.matomo.Actions.SYNC_DATASET;
-import static org.dhis2.utils.analytics.matomo.Categories.DATASET_LIST;
-import static org.dhis2.utils.analytics.matomo.Labels.CLICK;
 
 public class DataSetDetailPresenter {
 
@@ -27,6 +29,7 @@ public class DataSetDetailPresenter {
     private FilterManager filterManager;
     private FilterRepository filterRepository;
     private DisableHomeFiltersFromSettingsApp disableHomFilters;
+    private MatomoAnalyticsController matomoAnalyticsController;
 
     CompositeDisposable disposable;
 
@@ -35,7 +38,9 @@ public class DataSetDetailPresenter {
                                   SchedulerProvider schedulerProvider,
                                   FilterManager filterManager,
                                   FilterRepository filterRepository,
-                                  DisableHomeFiltersFromSettingsApp disableHomFilters) {
+                                  DisableHomeFiltersFromSettingsApp disableHomFilters,
+                                  MatomoAnalyticsController matomoAnalyticsController
+    ) {
 
         this.view = view;
         this.dataSetDetailRepository = dataSetDetailRepository;
@@ -43,6 +48,7 @@ public class DataSetDetailPresenter {
         this.filterManager = filterManager;
         this.filterRepository = filterRepository;
         this.disableHomFilters = disableHomFilters;
+        this.matomoAnalyticsController = matomoAnalyticsController;
         disposable = new CompositeDisposable();
     }
 
@@ -55,7 +61,7 @@ public class DataSetDetailPresenter {
                         .subscribeOn(schedulerProvider.io())
                         .observeOn(schedulerProvider.ui())
                         .subscribe(filterItems -> {
-                                    if (filterItems.isEmpty()){
+                                    if (filterItems.isEmpty()) {
                                         view.hideFilters();
                                     } else {
                                         view.setFilters(filterItems);
@@ -76,7 +82,6 @@ public class DataSetDetailPresenter {
                         ));
 
 
-
         disposable.add(FilterManager.getInstance().getCatComboRequest()
                 .subscribeOn(schedulerProvider.io())
                 .observeOn(schedulerProvider.ui())
@@ -85,6 +90,10 @@ public class DataSetDetailPresenter {
                         Timber::e
                 )
         );
+    }
+
+    public void onSyncClicked(){
+        view.showGranularSync();
     }
 
     public void onBackClick() {
@@ -133,7 +142,23 @@ public class DataSetDetailPresenter {
         disableHomFilters.execute(filters);
     }
 
-    public void setOpeningFilterToNone(){
+    public void setOpeningFilterToNone() {
         filterRepository.collapseAllFilters();
+    }
+
+    public void setOrgUnitFilters(List<OrganisationUnit> selectedOrgUnits) {
+        FilterManager.getInstance().addOrgUnits(selectedOrgUnits);
+    }
+
+    public void refreshList() {
+        filterManager.publishData();
+    }
+
+    public void trackDataSetAnalytics() {
+        matomoAnalyticsController.trackEvent(DATASET_LIST, OPEN_ANALYTICS, CLICK);
+    }
+
+    public void trackDataSetGranularSync() {
+        matomoAnalyticsController.trackEvent(DATASET_LIST,GRANULAR_SYNC, CLICK );
     }
 }

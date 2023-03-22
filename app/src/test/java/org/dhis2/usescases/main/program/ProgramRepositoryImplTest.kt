@@ -10,12 +10,13 @@ import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.android.plugins.RxAndroidPlugins
 import io.reactivex.schedulers.Schedulers
+import org.dhis2.commons.filters.FilterManager
+import org.dhis2.commons.filters.data.FilterPresenter
+import org.dhis2.commons.resources.ResourceManager
 import org.dhis2.data.dhislogic.DhisProgramUtils
 import org.dhis2.data.dhislogic.DhisTrackedEntityInstanceUtils
-import org.dhis2.data.filter.FilterPresenter
 import org.dhis2.data.schedulers.TrampolineSchedulerProvider
-import org.dhis2.utils.filters.FilterManager
-import org.dhis2.utils.resources.ResourceManager
+import org.dhis2.data.service.SyncStatusData
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.common.Access
 import org.hisp.dhis.android.core.common.DataAccess
@@ -23,6 +24,7 @@ import org.hisp.dhis.android.core.common.ObjectStyle
 import org.hisp.dhis.android.core.common.State
 import org.hisp.dhis.android.core.dataset.DataSet
 import org.hisp.dhis.android.core.dataset.DataSetInstanceSummary
+import org.hisp.dhis.android.core.event.Event
 import org.hisp.dhis.android.core.program.Program
 import org.hisp.dhis.android.core.program.ProgramType
 import org.hisp.dhis.android.core.trackedentity.TrackedEntityType
@@ -100,6 +102,7 @@ class ProgramRepositoryImplTest {
 
     @Test
     fun `Should return list of data set ProgramViewModel`() {
+        val syncStatusData = SyncStatusData(true)
         whenever(
             filterPresenter.filteredDataSetInstances()
         ) doReturn mock()
@@ -110,7 +113,7 @@ class ProgramRepositoryImplTest {
             filterPresenter.isAssignedToMeApplied()
         ) doReturn false
 
-        val testObserver = programRepository.aggregatesModels().test()
+        val testObserver = programRepository.aggregatesModels(syncStatusData).test()
 
         testObserver
             .assertNoErrors()
@@ -121,6 +124,7 @@ class ProgramRepositoryImplTest {
 
     @Test
     fun `Should set data set count to 0 if assign to me is active`() {
+        val syncStatusData = SyncStatusData(true)
         whenever(
             filterPresenter.filteredDataSetInstances()
         ) doReturn mock()
@@ -134,36 +138,37 @@ class ProgramRepositoryImplTest {
             filterPresenter.areFiltersActive()
         ) doReturn true
 
-        val testObserver = programRepository.aggregatesModels().test()
+        val testObserver = programRepository.aggregatesModels(syncStatusData).test()
 
         testObserver
             .assertNoErrors()
             .assertValue {
                 it.size == 2 &&
-                    it[0].count() == 0 &&
+                    it[0].count == 0 &&
                     it[0].translucent() &&
-                    it[1].count() == 0 &&
+                    it[1].count == 0 &&
                     it[1].translucent()
             }
     }
 
     @Test
     fun `Should return list of program ProgramViewModels`() {
+        val syncStatusData = SyncStatusData(true)
         initWheneverForPrograms()
         whenever(
             filterPresenter.areFiltersActive()
         ) doReturn false
-        val testOvserver = programRepository.programModels().test()
+        val testOvserver = programRepository.programModels(syncStatusData).test()
 
         testOvserver
             .assertNoErrors()
             .assertValue {
                 it.size == mockedPrograms().size &&
-                    it[0].count() == 10 &&
-                    it[0].typeName() == "event" &&
-                    it[1].count() == 2 &&
-                    it[1].hasOverdue() &&
-                    it[1].typeName() == "tei"
+                    it[0].count == 10 &&
+                    it[0].typeName == "event" &&
+                    it[1].count == 2 &&
+                    it[1].hasOverdueEvent &&
+                    it[1].typeName == "tei"
             }
     }
 
@@ -180,11 +185,26 @@ class ProgramRepositoryImplTest {
             dhisProgramUtils.getProgramState(any<Program>())
         ) doReturnConsecutively arrayListOf(State.SYNCED, State.TO_POST)
         whenever(
+            d2.programModule().programs().uid(any()).blockingGet()
+        )doReturnConsecutively mockedPrograms()
+        whenever(
             filterPresenter.filteredEventProgram(any(), any())
         ) doReturn mock()
         whenever(
-            filterPresenter.filteredEventProgram(any()).blockingCount()
-        ) doReturn 10
+            filterPresenter.filteredEventProgram(any()).blockingGet()
+        ) doReturn listOf(
+            Event.builder().uid("0").syncState(State.SYNCED).build(),
+            Event.builder().uid("1").syncState(State.SYNCED).build(),
+            Event.builder().uid("2").syncState(State.SYNCED).build(),
+            Event.builder().uid("3").syncState(State.SYNCED).build(),
+            Event.builder().uid("4").syncState(State.SYNCED).build(),
+            Event.builder().uid("5").syncState(State.SYNCED).build(),
+            Event.builder().uid("6").syncState(State.SYNCED).build(),
+            Event.builder().uid("7").syncState(State.SYNCED).build(),
+            Event.builder().uid("8").syncState(State.SYNCED).build(),
+            Event.builder().uid("9").syncState(State.SYNCED).build(),
+            Event.builder().uid("10").syncState(State.RELATIONSHIP).build()
+        )
         whenever(
             filterPresenter.filteredTrackerProgram(any())
         ) doReturn mock()
