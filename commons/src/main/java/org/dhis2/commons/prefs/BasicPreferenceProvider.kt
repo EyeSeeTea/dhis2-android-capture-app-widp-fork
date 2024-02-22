@@ -1,22 +1,9 @@
 package org.dhis2.commons.prefs
 
-import android.content.SharedPreferences
 import com.google.gson.reflect.TypeToken
-import java.util.Date
 
-interface PreferenceProvider {
+interface BasicPreferenceProvider {
 
-    fun sharedPreferences(): SharedPreferences
-
-    fun saveUserCredentials(serverUrl: String, userName: String, pass: String)
-
-    fun updateServerURL(serverUrl: String)
-
-    fun areCredentialsSet(): Boolean
-    fun areSameCredentials(serverUrl: String, userName: String, pass: String): Boolean
-    fun saveJiraCredentials(jiraAuth: String): String
-    fun saveJiraUser(jiraUser: String)
-    fun closeJiraSession()
     fun clear()
     fun setValue(key: String, value: Any? = null)
     fun removeValue(key: String)
@@ -29,7 +16,4 @@ interface PreferenceProvider {
     fun getSet(key: String, default: Set<String>): Set<String>?
     fun <T> getObjectFromJson(key: String, typeToken: TypeToken<T>, default: T): T
     fun <T> saveAsJson(key: String, objectToSave: T)
-    fun lastMetadataSync(): Date?
-    fun lastDataSync(): Date?
-    fun lastSync(): Date?
 }

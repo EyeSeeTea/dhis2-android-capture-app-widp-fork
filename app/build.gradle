@@ -165,7 +165,7 @@ android {
             applicationId "com.eyeseetea.widp"
             dimension "default"
             versionCode versions.vCode
-            versionName "2.7.1-widp-fork-2"
+            versionName "2.7.1-widp-fork-3"
         }
 
         psi {
@@ -370,4 +370,7 @@ dependencies {
 
     //Conscrypt
     implementation "org.conscrypt:conscrypt-android:${libraries.conscrypt}"
+
+    //Eyeseetea
+    implementation "io.noties.markwon:core:${libraries.markwon}"
 }
