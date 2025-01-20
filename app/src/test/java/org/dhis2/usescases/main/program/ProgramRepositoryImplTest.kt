@@ -194,7 +194,7 @@ class ProgramRepositoryImplTest {
             d2.programModule().programs().uid(any()).blockingGet(),
         )doReturnConsecutively mockedPrograms()
         whenever(
-            filterPresenter.filteredEventProgram(any(), any())
+            filterPresenter.filteredEventProgram(any())
         ) doReturn mock()
         whenever(
             filterPresenter.filteredEventProgram(any()).blockingGet(),

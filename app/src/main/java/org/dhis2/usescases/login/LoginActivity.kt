@@ -23,9 +23,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.dhis2.App
-import org.dhis2.bindings.buildInfo
 import org.dhis2.R
 import org.dhis2.bindings.app
+import org.dhis2.bindings.buildInfo
 import org.dhis2.bindings.onRightDrawableClicked
 import org.dhis2.commons.Constants.ACCOUNT_RECOVERY
 import org.dhis2.commons.Constants.EXTRA_DATA
@@ -146,7 +146,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
                         EXTRA_ACCOUNT_DISABLED,
                         true,
                     )
-
+                    OpenIdSession.LogOutReason.UNAUTHORIZED ->  putBoolean(EXTRA_SESSION_EXPIRED, true)
                     null -> {
                         // Nothing to do in this case
                     }
@@ -212,6 +212,8 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
         presenter.isDataComplete.observe(this) { this.setLoginVisibility(it) }
 
+        presenter.twoFactorCodeVisible.observe(this) { this.setTwoFactorCodeVisibility(it) }
+
         presenter.isTestingEnvironment.observe(
             this,
         ) { testingEnvironment ->
@@ -250,6 +252,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
         binding.clearPassButton.setOnClickListener { binding.userPassEdit.text = null }
         binding.clearUserNameButton.setOnClickListener { binding.userNameEdit.text = null }
         binding.clearUrl.setOnClickListener { binding.serverUrlEdit.text = null }
+        binding.clearTwoFactoButton.setOnClickListener { binding.userTwoFactorCodeEdit.text = null }
 
         presenter.loginProgressVisible.observe(this) { show ->
             showLoginProgress(show, getString(R.string.authenticating))
@@ -349,6 +352,14 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
     override fun setLoginVisibility(isVisible: Boolean) {
         binding.login.isEnabled = isVisible
+    }
+
+    fun setTwoFactorCodeVisibility(isVisible: Boolean) {
+        if (isVisible){
+            binding.twoFactoContainer.visibility = View.VISIBLE
+        } else {
+            binding.twoFactoContainer.visibility = View.GONE
+        }
     }
 
     private fun showLoginProgress(showLogin: Boolean, message: String? = null) {
