@@ -73,6 +73,7 @@ class LoginViewModel(
     val serverUrl = MutableLiveData<String>()
     val userName = MutableLiveData<String>()
     val password = MutableLiveData<String>()
+    val twoFactorCode = MutableLiveData<String>()
     val isDataComplete = MutableLiveData<Boolean>()
     val isTestingEnvironment = MutableLiveData<Trio<String, String, String>>()
     var testingCredentials: MutableMap<String, TestingCredential>? = null
@@ -84,6 +85,9 @@ class LoginViewModel(
 
     private val _displayMoreActions = MutableLiveData<Boolean>(true)
     val displayMoreActions: LiveData<Boolean> = _displayMoreActions
+
+    private val _twoFactorCodeVisible = MutableLiveData(false)
+    val twoFactorCodeVisible: LiveData<Boolean> = _twoFactorCodeVisible
 
     init {
         this.userManager?.let {
@@ -117,8 +121,8 @@ class LoginViewModel(
                                         DEFAULT_URL.ifEmpty { view.getDefaultServerProtocol() }
                                     }
 
-                                    if (DEFAULT_URL.isNotEmpty()){
-                                        onServerChanged(defaultUrl(),0,0,0)
+                                    if (DEFAULT_URL.isNotEmpty()) {
+                                        onServerChanged(defaultUrl(), 0, 0, 0)
                                     }
 
                                     view.setUrl(defaultUrl())
@@ -227,6 +231,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
+                        twoFactorCode.value,
                     )
                         .map {
                             run {
@@ -367,7 +372,11 @@ class LoginViewModel(
             userManager?.d2?.userModule()?.blockingLogOut()
             logIn()
         } else {
-            view.renderError(throwable)
+            if (throwable is D2Error && throwable.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE && _twoFactorCodeVisible.value == false) {
+                _twoFactorCodeVisible.postValue(true)
+            } else {
+                view.renderError(throwable)
+            }
         }
     }
 
@@ -383,13 +392,13 @@ class LoginViewModel(
 
     fun areSameCredentials(): Boolean {
         return (
-            preferenceProvider.areCredentialsSet() &&
-                preferenceProvider.areSameCredentials(
-                    serverUrl.value!!,
-                    userName.value!!,
-                    password.value!!,
-                )
-            ).also { areSameCredentials -> if (!areSameCredentials) saveUserCredentials() }
+                preferenceProvider.areCredentialsSet() &&
+                        preferenceProvider.areSameCredentials(
+                            serverUrl.value!!,
+                            userName.value!!,
+                            password.value!!,
+                        )
+                ).also { areSameCredentials -> if (!areSameCredentials) saveUserCredentials() }
     }
 
     private fun saveUserCredentials() {
@@ -544,10 +553,17 @@ class LoginViewModel(
         }
     }
 
+    fun onTwoFactorCodeChanged(twoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
+        if (password.toString() != this.password.value) {
+            this.twoFactorCode.value = twoFactorCode.toString()
+            checkData()
+        }
+    }
+
     private fun checkData() {
         val newValue = !serverUrl.value.isNullOrEmpty() &&
-            !userName.value.isNullOrEmpty() &&
-            !password.value.isNullOrEmpty()
+                !userName.value.isNullOrEmpty() &&
+                !password.value.isNullOrEmpty()
         if (isDataComplete.value == null || isDataComplete.value != newValue) {
             isDataComplete.value = newValue
         }

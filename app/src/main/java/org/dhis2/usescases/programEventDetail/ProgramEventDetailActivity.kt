@@ -452,7 +452,7 @@ class ProgramEventDetailActivity :
                 }
             })
             .onNoConnectionListener {
-                val contextView = findViewById<View>(R.id.rootView)
+                val contextView = findViewById<View>(R.id.toolbar)
                 Snackbar.make(
                     contextView,
                     R.string.sync_offline_check_connection,
