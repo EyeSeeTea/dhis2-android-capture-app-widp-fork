@@ -1,6 +1,5 @@
 package org.dhis2.usescases.main.program
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
@@ -18,7 +17,6 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.ViewCompat
 import androidx.databinding.DataBindingUtil
 import com.google.android.material.snackbar.Snackbar
-import io.noties.markwon.Markwon
 import org.dhis2.App
 import org.dhis2.R
 import org.dhis2.android.rtsm.commons.Constants.INTENT_EXTRA_APP_CONFIG
@@ -34,11 +32,6 @@ import org.dhis2.commons.sync.SyncContext
 import org.dhis2.databinding.FragmentProgramBinding
 import org.dhis2.usescases.general.FragmentGlobalAbstract
 import org.dhis2.usescases.main.MainActivity
-import org.dhis2.usescases.notifications.domain.Notification
-import org.dhis2.usescases.notifications.presentation.NotificationsPresenter
-import org.dhis2.usescases.notifications.presentation.NotificationsView
-import org.dhis2.usescases.programEventDetail.ProgramEventDetailActivity
-import org.dhis2.usescases.searchTrackEntity.SearchTEActivity
 import org.dhis2.usescases.main.navigateTo
 import org.dhis2.usescases.main.toHomeItemData
 import org.dhis2.utils.HelpManager
@@ -48,16 +41,12 @@ import org.dhis2.utils.granularsync.SyncStatusDialog
 import timber.log.Timber
 import javax.inject.Inject
 
-class ProgramFragment : FragmentGlobalAbstract(), ProgramView,
-    NotificationsView {
+class ProgramFragment : FragmentGlobalAbstract(), ProgramView{
 
     private lateinit var binding: FragmentProgramBinding
 
     @Inject
     lateinit var presenter: ProgramPresenter
-
-    @Inject
-    lateinit var notificationsPresenter: NotificationsPresenter
 
     @Inject
     lateinit var animation: ProgramAnimation
@@ -72,7 +61,7 @@ class ProgramFragment : FragmentGlobalAbstract(), ProgramView,
     override fun onAttach(context: Context) {
         super.onAttach(context)
         activity?.let {
-            (it.applicationContext as App).userComponent()?.plus(ProgramModule(this, this))?.inject(this)
+            (it.applicationContext as App).userComponent()?.plus(ProgramModule(this))?.inject(this)
         }
     }
 
@@ -124,8 +113,6 @@ class ProgramFragment : FragmentGlobalAbstract(), ProgramView,
         animation.initBackdropCorners(
             binding.drawerLayout.background.mutate() as GradientDrawable,
         )
-
-        notificationsPresenter.refresh()
     }
 
     override fun onPause() {
@@ -250,23 +237,5 @@ class ProgramFragment : FragmentGlobalAbstract(), ProgramView,
 
     companion object {
         const val FRAGMENT_TAG = "SYNC"
-    }
-
-    override fun renderNotifications(notifications: List<Notification>) {
-        notifications.forEach(::showNotification)
-    }
-
-    private fun showNotification(notification: Notification) {
-        val markwon = Markwon.create(requireActivity())
-        val content = markwon.toMarkdown(notification.content)
-
-        AlertDialog.Builder(context, R.style.CustomDialog)
-            .setTitle("Notification")
-            .setMessage(content)
-            .setPositiveButton(getString(R.string.wipe_data_ok)) { dialog, _ ->
-                notificationsPresenter.markNotificationAsRead(notification)
-            }
-            .setCancelable(true)
-            .show()
     }
 }

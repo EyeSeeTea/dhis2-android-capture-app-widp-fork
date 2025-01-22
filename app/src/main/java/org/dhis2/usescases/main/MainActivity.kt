@@ -23,6 +23,7 @@ import androidx.databinding.DataBindingUtil
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import io.noties.markwon.Markwon
 import org.dhis2.bindings.hasPermissions
 import org.dhis2.BuildConfig
 import org.dhis2.R
@@ -38,6 +39,9 @@ import org.dhis2.ui.model.ButtonUiModel
 import org.dhis2.usescases.development.DevelopmentActivity
 import org.dhis2.usescases.general.ActivityGlobalAbstract
 import org.dhis2.usescases.login.LoginActivity
+import org.dhis2.usescases.notifications.domain.Notification
+import org.dhis2.usescases.notifications.presentation.NotificationsPresenter
+import org.dhis2.usescases.notifications.presentation.NotificationsView
 import org.dhis2.utils.DateUtils
 import org.dhis2.utils.analytics.CLICK
 import org.dhis2.utils.analytics.CLOSE_SESSION
@@ -61,13 +65,17 @@ const val AVOID_SYNC = "AvoidSync"
 class MainActivity :
     ActivityGlobalAbstract(),
     MainView,
-    DrawerLayout.DrawerListener {
+    DrawerLayout.DrawerListener,
+    NotificationsView {
 
     private lateinit var binding: ActivityMainBinding
     lateinit var mainComponent: MainComponent
 
     @Inject
     lateinit var presenter: MainPresenter
+
+    @Inject
+    lateinit var notificationsPresenter: NotificationsPresenter
 
     @Inject
     lateinit var newAdapter: FiltersAdapter
@@ -140,7 +148,7 @@ class MainActivity :
     //region LIFECYCLE
     override fun onCreate(savedInstanceState: Bundle?) {
         app().userComponent()?.let {
-            mainComponent = it.plus(MainModule(this)).apply {
+            mainComponent = it.plus(MainModule(this, this)).apply {
                 inject(this@MainActivity)
             }
         } ?: navigateTo<LoginActivity>(true)
@@ -221,6 +229,8 @@ class MainActivity :
             presenter.launchInitialDataSync()
         } else if (!singleProgramNavigationDone && presenter.hasOneHomeItem()) {
             navigateToSingleProgram()
+        } else {
+            notificationsPresenter.refresh()
         }
 
         checkNotificationPermission()
@@ -694,5 +704,23 @@ class MainActivity :
     private fun launchUrl(uri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW, uri)
         startActivity(intent)
+    }
+
+    override fun renderNotifications(notifications: List<Notification>) {
+        notifications.forEach(::showNotification)
+    }
+
+    private fun showNotification(notification: Notification) {
+        val markwon = Markwon.create(this)
+        val content = markwon.toMarkdown(notification.content)
+
+        android.app.AlertDialog.Builder(context, R.style.CustomDialog)
+            .setTitle("Notification")
+            .setMessage(content)
+            .setPositiveButton(getString(R.string.wipe_data_ok)) { dialog, _ ->
+                notificationsPresenter.markNotificationAsRead(notification)
+            }
+            .setCancelable(true)
+            .show()
     }
 }
