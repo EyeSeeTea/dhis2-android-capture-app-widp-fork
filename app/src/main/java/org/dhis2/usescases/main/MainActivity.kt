@@ -65,17 +65,13 @@ const val AVOID_SYNC = "AvoidSync"
 class MainActivity :
     ActivityGlobalAbstract(),
     MainView,
-    DrawerLayout.DrawerListener,
-    NotificationsView {
+    DrawerLayout.DrawerListener {
 
     private lateinit var binding: ActivityMainBinding
     lateinit var mainComponent: MainComponent
 
     @Inject
     lateinit var presenter: MainPresenter
-
-    @Inject
-    lateinit var notificationsPresenter: NotificationsPresenter
 
     @Inject
     lateinit var newAdapter: FiltersAdapter
@@ -228,9 +224,12 @@ class MainActivity :
         if (!presenter.wasSyncAlreadyDone()) {
             presenter.launchInitialDataSync()
         } else if (!singleProgramNavigationDone && presenter.hasOneHomeItem()) {
+            notificationsPresenter.markShowNotificationsAsPending()
+
             navigateToSingleProgram()
         } else {
-            notificationsPresenter.refresh()
+            notificationsPresenter.markShowNotificationsAsPending()
+            notificationsPresenter.refresh(this)
         }
 
         checkNotificationPermission()
@@ -704,23 +703,5 @@ class MainActivity :
     private fun launchUrl(uri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW, uri)
         startActivity(intent)
-    }
-
-    override fun renderNotifications(notifications: List<Notification>) {
-        notifications.forEach(::showNotification)
-    }
-
-    private fun showNotification(notification: Notification) {
-        val markwon = Markwon.create(this)
-        val content = markwon.toMarkdown(notification.content)
-
-        android.app.AlertDialog.Builder(context, R.style.CustomDialog)
-            .setTitle("Notification")
-            .setMessage(content)
-            .setPositiveButton(getString(R.string.wipe_data_ok)) { dialog, _ ->
-                notificationsPresenter.markNotificationAsRead(notification)
-            }
-            .setCancelable(true)
-            .show()
     }
 }

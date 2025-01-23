@@ -8,14 +8,20 @@ import org.dhis2.usescases.notifications.domain.MarkNotificationAsRead
 import org.dhis2.usescases.notifications.domain.Notification
 
 class NotificationsPresenter(
-    private val notificationsView: NotificationsView,
     private val getNotifications: GetNotifications,
     private val markNotificationAsRead: MarkNotificationAsRead
 ){
-    fun refresh() {
-        val notifications = getNotifications()
+    fun refresh(notificationsView: NotificationsView) {
+        if (ShowNotifications.isPending) {
+            ShowNotifications.isPending = false
+            val notifications = getNotifications()
 
-        notificationsView.renderNotifications(notifications)
+            notificationsView.renderNotifications(notifications)
+        }
+    }
+
+    fun markShowNotificationsAsPending (){
+        ShowNotifications.isPending = true
     }
 
     fun markNotificationAsRead(notification: Notification) {
@@ -23,6 +29,10 @@ class NotificationsPresenter(
             markNotificationAsRead.invoke(notification.id)
         }
     }
+}
+
+object ShowNotifications {
+    var isPending = false
 }
 
 interface NotificationsView {

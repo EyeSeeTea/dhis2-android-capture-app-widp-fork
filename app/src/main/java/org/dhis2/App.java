@@ -46,6 +46,7 @@ import org.dhis2.maps.MapController;
 import org.dhis2.usescases.crash.CrashActivity;
 import org.dhis2.usescases.login.LoginComponent;
 import org.dhis2.usescases.login.LoginModule;
+import org.dhis2.usescases.notifications.di.NotificationsModule;
 import org.dhis2.usescases.teiDashboard.TeiDashboardComponent;
 import org.dhis2.usescases.teiDashboard.TeiDashboardModule;
 import org.dhis2.utils.analytics.AnalyticsModule;
@@ -209,7 +210,8 @@ public class App extends MultiDexApplication implements Components, LifecycleObs
                 .coroutineDispatchers(new DispatcherModule())
                 .crashReportModule(new CrashReportModule())
                 .customDispatcher(new CustomDispatcherModule())
-                .featureConfigModule(new FeatureConfigModule());
+                .featureConfigModule(new FeatureConfigModule())
+                .notificationsModule(new NotificationsModule());
     }
 
     @NonNull

@@ -23,19 +23,6 @@ class SyncDataWorkerModule {
 
     @Provides
     @PerService
-    fun notificationsRepository(
-        d2: D2,
-        preference: BasicPreferenceProvider
-    ): NotificationRepository {
-        val notificationsApi = d2.retrofit().create(
-            NotificationsApi::class.java
-        )
-        val userGroupsApi = d2.retrofit().create(UserGroupsApi::class.java)
-        return NotificationD2Repository(d2, preference, notificationsApi, userGroupsApi)
-    }
-
-    @Provides
-    @PerService
     internal fun syncPresenter(
         d2: D2,
         preferences: PreferenceProvider,
