@@ -3,11 +3,10 @@ package org.dhis2.usescases.datasets.datasetInitial
 import io.reactivex.Flowable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.BiFunction
-import java.util.ArrayList
 import org.dhis2.commons.data.tuples.Pair
+import org.dhis2.commons.extensions.inDateRange
+import org.dhis2.commons.extensions.inOrgUnit
 import org.dhis2.commons.schedulers.SchedulerProvider
-import org.dhis2.data.dhislogic.inDateRange
-import org.dhis2.data.dhislogic.inOrgUnit
 import org.hisp.dhis.android.core.category.CategoryOption
 import org.hisp.dhis.android.core.organisationunit.OrganisationUnit
 import org.hisp.dhis.android.core.period.PeriodType
@@ -16,7 +15,7 @@ import timber.log.Timber
 class DataSetInitialPresenter(
     private val view: DataSetInitialContract.View,
     private val dataSetInitialRepository: DataSetInitialRepository,
-    private val schedulerProvider: SchedulerProvider
+    private val schedulerProvider: SchedulerProvider,
 ) : DataSetInitialContract.Presenter {
 
     var compositeDisposable: CompositeDisposable = CompositeDisposable()
@@ -35,8 +34,8 @@ class DataSetInitialPresenter(
                         orgUnits = data
                         if (data.size == 1) view.setOrgUnit(data[0])
                     },
-                    Timber::d
-                )
+                    Timber::d,
+                ),
         )
         compositeDisposable.add(
             dataSetInitialRepository.dataSet()
@@ -48,8 +47,8 @@ class DataSetInitialPresenter(
                         openFuturePeriods = dataSetInitialModel.openFuturePeriods()
                         view.setData(dataSetInitialModel)
                     },
-                    Timber::d
-                )
+                    Timber::d,
+                ),
         )
     }
 
@@ -71,11 +70,11 @@ class DataSetInitialPresenter(
                         view.showPeriodSelector(
                             periodType,
                             data,
-                            openFuturePeriods
+                            openFuturePeriods,
                         )
                     },
-                    Timber::d
-                )
+                    Timber::d,
+                ),
         )
     }
 
@@ -92,11 +91,11 @@ class DataSetInitialPresenter(
                                 it.access().data().write() &&
                                     it.inDateRange(view.selectedPeriod) &&
                                     it.inOrgUnit(view.selectedOrgUnit?.uid())
-                            }
+                            },
                         )
                     },
-                    Timber::d
-                )
+                    Timber::d,
+                ),
         )
     }
 
@@ -105,15 +104,15 @@ class DataSetInitialPresenter(
             Flowable.zip(
                 dataSetInitialRepository.getCategoryOptionCombo(
                     view.selectedCatOptions,
-                    catCombo
+                    catCombo,
                 ),
                 dataSetInitialRepository.getPeriodId(periodType, view.selectedPeriod),
                 BiFunction { val0: String?, val1: String? ->
                     Pair.create(
                         val0!!,
-                        val1!!
+                        val1!!,
                     )
-                }
+                },
             )
                 .subscribeOn(schedulerProvider.io())
                 .observeOn(schedulerProvider.ui())
@@ -121,11 +120,11 @@ class DataSetInitialPresenter(
                     { response: Pair<String, String> ->
                         view.navigateToDataSetTable(
                             response.val0(),
-                            response.val1()
+                            response.val1(),
                         )
                     },
-                    Timber::d
-                )
+                    Timber::d,
+                ),
         )
     }
 

@@ -1,86 +1,80 @@
 package org.dhis2.usescases.teiDashboard.dashboardfragments.indicators
 
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import dhis2.org.analytics.charts.Charts
 import dhis2.org.analytics.charts.data.Graph
 import dhis2.org.analytics.charts.ui.SectionTitle
-import io.reactivex.Flowable
 import io.reactivex.Single
 import org.dhis2.commons.resources.ResourceManager
-import org.dhis2.data.forms.dataentry.RuleEngineRepository
-import org.dhis2.utils.Result
+import org.dhis2.mobileProgramRules.RuleEngineHelper
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.common.RelativePeriod
 import org.hisp.dhis.android.core.enrollment.Enrollment
-import org.hisp.dhis.android.core.enrollment.EnrollmentCollectionRepository
 import org.hisp.dhis.android.core.period.PeriodType
 import org.hisp.dhis.android.core.program.ProgramIndicator
 import org.hisp.dhis.android.core.program.ProgramRule
 import org.hisp.dhis.android.core.program.ProgramRuleAction
 import org.hisp.dhis.android.core.program.ProgramRuleActionType
-import org.hisp.dhis.rules.RuleEngine
-import org.hisp.dhis.rules.models.RuleActionDisplayKeyValuePair
+import org.hisp.dhis.rules.models.RuleAction
 import org.hisp.dhis.rules.models.RuleEffect
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 class TrackerAnalyticsRepositoryTest {
 
     private val d2: D2 = Mockito.mock(D2::class.java, Mockito.RETURNS_DEEP_STUBS)
-    private val ruleEngine: RuleEngine = mock()
-    private val ruleEngineRepository: RuleEngineRepository = mock()
+    private val ruleEngineHelper: RuleEngineHelper = mock()
     private val charts: Charts = mock()
     private val resourceManager: ResourceManager = mock()
-    private val enrollmentRepository: EnrollmentCollectionRepository = mock()
     private lateinit var repository: IndicatorRepository
 
     @Before
     fun setUp() {
         whenever(
-            d2.enrollmentModule().enrollments().byTrackedEntityInstance().eq("teiUid")
+            d2.enrollmentModule().enrollments().byTrackedEntityInstance().eq("teiUid"),
         ) doReturn mock()
         whenever(
             d2.enrollmentModule().enrollments().byTrackedEntityInstance().eq("teiUid")
-                .byProgram()
+                .byProgram(),
         ) doReturn mock()
         whenever(
             d2.enrollmentModule().enrollments().byTrackedEntityInstance().eq("teiUid")
-                .byProgram().eq("programUid")
+                .byProgram().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.enrollmentModule().enrollments().byTrackedEntityInstance().eq("teiUid")
-                .byProgram().eq("programUid").one()
+                .byProgram().eq("programUid").one(),
         ) doReturn mock()
         whenever(
             d2.enrollmentModule().enrollments().byTrackedEntityInstance().eq("teiUid")
-                .byProgram().eq("programUid").one().blockingGet()
+                .byProgram().eq("programUid").one().blockingGet(),
         ) doReturn Enrollment.builder().uid("enrollmentUid").build()
         whenever(
-            resourceManager.sectionCharts()
+            resourceManager.sectionCharts(),
         ) doReturn "Charts"
         whenever(
-            resourceManager.sectionIndicators()
+            resourceManager.sectionIndicators(),
         ) doReturn "Indicators"
         whenever(
-            resourceManager.sectionFeedback()
+            resourceManager.sectionFeedback(),
         ) doReturn "Feedback"
         whenever(
-            resourceManager.sectionChartsAndIndicators()
+            resourceManager.sectionChartsAndIndicators(),
         ) doReturn "Charts and indicators"
         whenever(
-            resourceManager.defaultIndicatorLabel()
+            resourceManager.defaultIndicatorLabel(),
         ) doReturn "Info"
         repository = TrackerAnalyticsRepository(
             d2,
-            ruleEngineRepository,
+            ruleEngineHelper,
             charts,
             "programUid",
             "teiUid",
-            resourceManager
+            resourceManager,
         )
     }
 
@@ -88,91 +82,88 @@ class TrackerAnalyticsRepositoryTest {
     fun `Should fetch analytic data for tracker`() {
         whenever(
             d2.programModule().programIndicators()
-                .byDisplayInForm().isTrue
+                .byDisplayInForm().isTrue,
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
-                .byProgramUid()
+                .byProgramUid(),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programIndicators()
+                .byDisplayInForm().isTrue
+                .byProgramUid().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
                 .byProgramUid().eq("programUid")
+                .withLegendSets(),
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
                 .byProgramUid().eq("programUid")
                 .withLegendSets()
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programIndicators()
-                .byDisplayInForm().isTrue
-                .byProgramUid().eq("programUid")
-                .withLegendSets()
-                .get()
+                .get(),
         ) doReturn Single.just(mockedProgramIndicatorList())
 
         whenever(
-            d2.programModule().programIndicatorEngine()
+            d2.programModule().programIndicatorEngine(),
         ) doReturn mock()
 
         whenever(
             d2.programModule().programIndicatorEngine().getEnrollmentProgramIndicatorValue(
                 "enrollmentUid",
-                "programIndicatorUid_1"
-            )
+                "programIndicatorUid_1",
+            ),
         ) doReturn "1.0"
 
         whenever(
             d2.programModule().programRules()
-                .byProgramUid().eq("programUid")
+                .byProgramUid().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.programModule().programRules()
                 .byProgramUid().eq("programUid")
-                .get()
+                .get(),
         ) doReturn Single.just(mockedRules())
         whenever(
             d2.programModule().programRuleActions()
-                .byProgramRuleUid()
+                .byProgramRuleUid(),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programRuleActions()
+                .byProgramRuleUid().`in`(mockedRules().map { it.uid() }),
         ) doReturn mock()
         whenever(
             d2.programModule().programRuleActions()
                 .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programRuleActions()
-                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-                .byProgramRuleActionType()
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programRuleActions()
-                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-                .byProgramRuleActionType().`in`(
-                    ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
-                    ProgramRuleActionType.DISPLAYTEXT
-                )
+                .byProgramRuleActionType(),
         ) doReturn mock()
         whenever(
             d2.programModule().programRuleActions()
                 .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
                 .byProgramRuleActionType().`in`(
                     ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
-                    ProgramRuleActionType.DISPLAYTEXT
+                    ProgramRuleActionType.DISPLAYTEXT,
+                ),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programRuleActions()
+                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
+                .byProgramRuleActionType().`in`(
+                    ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
+                    ProgramRuleActionType.DISPLAYTEXT,
                 )
-                .get()
+                .get(),
         ) doReturn Single.just(mockedActions())
         whenever(
-            ruleEngineRepository.updateRuleEngine()
-        ) doReturn Flowable.just(ruleEngine)
-        whenever(
-            ruleEngineRepository.reCalculate()
-        ) doReturn Flowable.just(Result.success(mockedEffects()))
+            ruleEngineHelper.evaluate(),
+        ) doReturn mockedEffects()
 
         whenever(
-            charts.geEnrollmentCharts(any())
+            charts.geEnrollmentCharts(any()),
         ) doReturn mockedCharts()
 
         val testObserver = repository.fetchData().test()
@@ -188,91 +179,88 @@ class TrackerAnalyticsRepositoryTest {
     fun `Should fetch analytic data for tracker with only indicator section`() {
         whenever(
             d2.programModule().programIndicators()
-                .byDisplayInForm().isTrue
+                .byDisplayInForm().isTrue,
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
-                .byProgramUid()
+                .byProgramUid(),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programIndicators()
+                .byDisplayInForm().isTrue
+                .byProgramUid().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
                 .byProgramUid().eq("programUid")
+                .withLegendSets(),
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
                 .byProgramUid().eq("programUid")
                 .withLegendSets()
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programIndicators()
-                .byDisplayInForm().isTrue
-                .byProgramUid().eq("programUid")
-                .withLegendSets()
-                .get()
+                .get(),
         ) doReturn Single.just(mockedProgramIndicatorList())
 
         whenever(
-            d2.programModule().programIndicatorEngine()
+            d2.programModule().programIndicatorEngine(),
         ) doReturn mock()
 
         whenever(
             d2.programModule().programIndicatorEngine().getEnrollmentProgramIndicatorValue(
                 "enrollmentUid",
-                "programIndicatorUid_1"
-            )
+                "programIndicatorUid_1",
+            ),
         ) doReturn "1.0"
 
         whenever(
             d2.programModule().programRules()
-                .byProgramUid().eq("programUid")
+                .byProgramUid().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.programModule().programRules()
                 .byProgramUid().eq("programUid")
-                .get()
+                .get(),
         ) doReturn Single.just(mockedRules())
         whenever(
             d2.programModule().programRuleActions()
-                .byProgramRuleUid()
+                .byProgramRuleUid(),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programRuleActions()
+                .byProgramRuleUid().`in`(mockedRules().map { it.uid() }),
         ) doReturn mock()
         whenever(
             d2.programModule().programRuleActions()
                 .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programRuleActions()
-                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-                .byProgramRuleActionType()
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programRuleActions()
-                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-                .byProgramRuleActionType().`in`(
-                    ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
-                    ProgramRuleActionType.DISPLAYTEXT
-                )
+                .byProgramRuleActionType(),
         ) doReturn mock()
         whenever(
             d2.programModule().programRuleActions()
                 .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
                 .byProgramRuleActionType().`in`(
                     ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
-                    ProgramRuleActionType.DISPLAYTEXT
+                    ProgramRuleActionType.DISPLAYTEXT,
+                ),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programRuleActions()
+                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
+                .byProgramRuleActionType().`in`(
+                    ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
+                    ProgramRuleActionType.DISPLAYTEXT,
                 )
-                .get()
+                .get(),
         ) doReturn Single.just(mockedActions())
         whenever(
-            ruleEngineRepository.updateRuleEngine()
-        ) doReturn Flowable.just(ruleEngine)
-        whenever(
-            ruleEngineRepository.reCalculate()
-        ) doReturn Flowable.just(Result.success(emptyList()))
+            ruleEngineHelper.evaluate(),
+        ) doReturn emptyList()
 
         whenever(
-            charts.geEnrollmentCharts(any())
+            charts.geEnrollmentCharts(any()),
         ) doReturn emptyList()
 
         val testObserver = repository.fetchData().test()
@@ -286,91 +274,89 @@ class TrackerAnalyticsRepositoryTest {
     fun `Should fetch analytic data for tracker with only charts section`() {
         whenever(
             d2.programModule().programIndicators()
-                .byDisplayInForm().isTrue
+                .byDisplayInForm().isTrue,
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
-                .byProgramUid()
+                .byProgramUid(),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programIndicators()
+                .byDisplayInForm().isTrue
+                .byProgramUid().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
                 .byProgramUid().eq("programUid")
+                .withLegendSets(),
         ) doReturn mock()
         whenever(
             d2.programModule().programIndicators()
                 .byDisplayInForm().isTrue
                 .byProgramUid().eq("programUid")
                 .withLegendSets()
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programIndicators()
-                .byDisplayInForm().isTrue
-                .byProgramUid().eq("programUid")
-                .withLegendSets()
-                .get()
+                .get(),
         ) doReturn Single.just(emptyList())
 
         whenever(
-            d2.programModule().programIndicatorEngine()
+            d2.programModule().programIndicatorEngine(),
         ) doReturn mock()
 
         whenever(
             d2.programModule().programIndicatorEngine().getEnrollmentProgramIndicatorValue(
                 "enrollmentUid",
-                "programIndicatorUid_1"
-            )
+                "programIndicatorUid_1",
+            ),
         ) doReturn "1.0"
 
         whenever(
             d2.programModule().programRules()
-                .byProgramUid().eq("programUid")
+                .byProgramUid().eq("programUid"),
         ) doReturn mock()
         whenever(
             d2.programModule().programRules()
                 .byProgramUid().eq("programUid")
-                .get()
+                .get(),
         ) doReturn Single.just(mockedRules())
         whenever(
             d2.programModule().programRuleActions()
-                .byProgramRuleUid()
+                .byProgramRuleUid(),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programRuleActions()
+                .byProgramRuleUid().`in`(mockedRules().map { it.uid() }),
         ) doReturn mock()
         whenever(
             d2.programModule().programRuleActions()
                 .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programRuleActions()
-                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-                .byProgramRuleActionType()
-        ) doReturn mock()
-        whenever(
-            d2.programModule().programRuleActions()
-                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
-                .byProgramRuleActionType().`in`(
-                    ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
-                    ProgramRuleActionType.DISPLAYTEXT
-                )
+                .byProgramRuleActionType(),
         ) doReturn mock()
         whenever(
             d2.programModule().programRuleActions()
                 .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
                 .byProgramRuleActionType().`in`(
                     ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
-                    ProgramRuleActionType.DISPLAYTEXT
+                    ProgramRuleActionType.DISPLAYTEXT,
+                ),
+        ) doReturn mock()
+        whenever(
+            d2.programModule().programRuleActions()
+                .byProgramRuleUid().`in`(mockedRules().map { it.uid() })
+                .byProgramRuleActionType().`in`(
+                    ProgramRuleActionType.DISPLAYKEYVALUEPAIR,
+                    ProgramRuleActionType.DISPLAYTEXT,
                 )
-                .get()
+                .get(),
         ) doReturn Single.just(mockedActions())
-        whenever(
-            ruleEngineRepository.updateRuleEngine()
-        ) doReturn Flowable.just(ruleEngine)
-        whenever(
-            ruleEngineRepository.reCalculate()
-        ) doReturn Flowable.just(Result.success(emptyList()))
 
         whenever(
-            charts.geEnrollmentCharts(any())
+            ruleEngineHelper.evaluate(),
+        ) doReturn emptyList()
+
+        whenever(
+            charts.geEnrollmentCharts(any()),
         ) doReturn mockedCharts()
 
         val testObserver = repository.fetchData().test()
@@ -389,34 +375,46 @@ class TrackerAnalyticsRepositoryTest {
             ProgramIndicator.builder()
                 .uid("programIndicatorUid_2")
                 .displayInForm(false)
-                .build()
+                .build(),
         )
     }
 
     private fun mockedRules(): List<ProgramRule> {
         return listOf(
-            ProgramRule.builder().uid("rule_1").build()
+            ProgramRule.builder().uid("rule_1").build(),
         )
     }
 
     private fun mockedActions(): List<ProgramRuleAction> {
         return listOf(
-            ProgramRuleAction.builder().uid("rule_action_2").build()
+            ProgramRuleAction.builder().uid("rule_action_2").build(),
         )
     }
 
     private fun mockedEffects(): List<RuleEffect> {
         return listOf(
-            RuleEffect.create(
+            RuleEffect(
                 "ruleUid1",
-                RuleActionDisplayKeyValuePair.createForFeedback("content", "data"),
-                "data"
+                RuleAction(
+                    data = "data",
+                    type = ProgramRuleActionType.DISPLAYKEYVALUEPAIR.name,
+                    values = mutableMapOf(
+                        Pair("content", "content"),
+                        Pair("location", "feedback"),
+                    ),
+                ),
             ),
-            RuleEffect.create(
+            RuleEffect(
                 "ruleUid2",
-                RuleActionDisplayKeyValuePair.createForIndicators("content", "data"),
-                "data"
-            )
+                RuleAction(
+                    data = "data",
+                    type = ProgramRuleActionType.DISPLAYKEYVALUEPAIR.name,
+                    values = mutableMapOf(
+                        Pair("content", "content"),
+                        Pair("location", "indicators"),
+                    ),
+                ),
+            ),
         )
     }
 
@@ -427,8 +425,8 @@ class TrackerAnalyticsRepositoryTest {
                 emptyList(),
                 RelativePeriod.LAST_5_YEARS,
                 PeriodType.Yearly,
-                10
-            )
+                10,
+            ),
         )
     }
 }

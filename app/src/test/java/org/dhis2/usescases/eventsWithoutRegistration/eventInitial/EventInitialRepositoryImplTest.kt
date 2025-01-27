@@ -1,17 +1,16 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventInitial
 
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import io.reactivex.Single
-import java.util.ArrayList
-import org.dhis2.data.forms.dataentry.RuleEngineRepository
+import org.dhis2.commons.resources.MetadataIconProvider
 import org.dhis2.form.ui.FieldViewModelFactory
+import org.dhis2.mobileProgramRules.RuleEngineHelper
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.common.Access
 import org.hisp.dhis.android.core.common.DataAccess
 import org.hisp.dhis.android.core.common.FeatureType
 import org.hisp.dhis.android.core.common.Geometry
+import org.hisp.dhis.android.core.common.ObjectStyle
+import org.hisp.dhis.android.core.common.ObjectWithUid
 import org.hisp.dhis.android.core.enrollment.Enrollment
 import org.hisp.dhis.android.core.enrollment.EnrollmentStatus
 import org.hisp.dhis.android.core.event.Event
@@ -23,6 +22,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 class EventInitialRepositoryImplTest {
     private lateinit var repository: EventInitialRepositoryImpl
@@ -30,22 +33,44 @@ class EventInitialRepositoryImplTest {
     private val stageUid = "stageUid"
     private val d2: D2 = Mockito.mock(D2::class.java, Mockito.RETURNS_DEEP_STUBS)
     private val fieldFactory: FieldViewModelFactory = mock()
-    private val ruleEngineRepository: RuleEngineRepository = mock()
+    private val ruleEngineHelper: RuleEngineHelper = mock()
+    private val metadataIconProvider: MetadataIconProvider = mock()
+
+    private val mockedStage: ProgramStage = mock {
+        on { program() } doReturn ObjectWithUid.create("programUid")
+    }
+
+    private val mockedProgram: Program = mock {
+        on { style() } doReturn ObjectStyle.builder().build()
+    }
 
     @Before
     fun setUp() {
+        whenever(
+            d2.programModule().programStages()
+                .uid(any())
+                .get(),
+        ) doReturn Single.just(mockedStage)
+        whenever(
+            d2.programModule().programs()
+                .uid(any())
+                .blockingGet(),
+        )doReturn mockedProgram
+
         repository = EventInitialRepositoryImpl(
             eventUid,
-            stageUid, d2,
+            stageUid,
+            d2,
             fieldFactory,
-            ruleEngineRepository
+            ruleEngineHelper,
+            metadataIconProvider,
         )
     }
 
     @Test
     fun `Should return editable geometry model`() {
         whenever(
-            d2.eventModule().eventService().isEditable(eventUid)
+            d2.eventModule().eventService().isEditable(eventUid),
         ) doReturn Single.just(true)
         val event = Event.builder()
             .uid(eventUid)
@@ -53,10 +78,10 @@ class EventInitialRepositoryImplTest {
             .status(EventStatus.ACTIVE)
             .build()
         whenever(
-            d2.eventModule().events().uid(eventUid).blockingGet()
+            d2.eventModule().events().uid(eventUid).blockingGet(),
         ) doReturn event
         whenever(
-            d2.eventModule().events().uid(eventUid).get()
+            d2.eventModule().events().uid(eventUid).get(),
         ) doReturn Single.just(event)
         mockStage(true)
         mockProgramAccess(true)
@@ -70,7 +95,7 @@ class EventInitialRepositoryImplTest {
         nonEditableStatus.add(EventStatus.SKIPPED)
         val shouldBlockEdition = !d2.eventModule().eventService().blockingIsEditable(eventUid) &&
             nonEditableStatus.contains(
-                d2.eventModule().events().uid(eventUid).blockingGet().status()
+                d2.eventModule().events().uid(eventUid).blockingGet()?.status(),
             )
 
         val editableField = accessDataWrite && !shouldBlockEdition
@@ -80,7 +105,7 @@ class EventInitialRepositoryImplTest {
     @Test
     fun `Should return not editable geometry model if stage has no access`() {
         whenever(
-            d2.eventModule().eventService().blockingIsEditable(eventUid)
+            d2.eventModule().eventService().blockingIsEditable(eventUid),
         ) doReturn true
         val event = Event.builder()
             .uid(eventUid)
@@ -88,10 +113,10 @@ class EventInitialRepositoryImplTest {
             .status(EventStatus.ACTIVE)
             .build()
         whenever(
-            d2.eventModule().events().uid(eventUid).blockingGet()
+            d2.eventModule().events().uid(eventUid).blockingGet(),
         ) doReturn event
         whenever(
-            d2.eventModule().events().uid(eventUid).get()
+            d2.eventModule().events().uid(eventUid).get(),
         ) doReturn Single.just(event)
         mockStage(false)
         mockProgramAccess(true)
@@ -106,7 +131,7 @@ class EventInitialRepositoryImplTest {
         nonEditableStatus.add(EventStatus.SKIPPED)
         val shouldBlockEdition = !d2.eventModule().eventService().blockingIsEditable(eventUid) &&
             nonEditableStatus.contains(
-                d2.eventModule().events().uid(eventUid).blockingGet().status()
+                d2.eventModule().events().uid(eventUid).blockingGet()?.status(),
             )
 
         val editableField = accessDataWrite && !shouldBlockEdition
@@ -116,7 +141,7 @@ class EventInitialRepositoryImplTest {
     @Test
     fun `Should return not editable geometry model if program has no access`() {
         whenever(
-            d2.eventModule().eventService().blockingIsEditable(eventUid)
+            d2.eventModule().eventService().blockingIsEditable(eventUid),
         ) doReturn true
         val event = Event.builder()
             .uid(eventUid)
@@ -124,10 +149,10 @@ class EventInitialRepositoryImplTest {
             .status(EventStatus.ACTIVE)
             .build()
         whenever(
-            d2.eventModule().events().uid(eventUid).blockingGet()
+            d2.eventModule().events().uid(eventUid).blockingGet(),
         ) doReturn event
         whenever(
-            d2.eventModule().events().uid(eventUid).get()
+            d2.eventModule().events().uid(eventUid).get(),
         ) doReturn Single.just(event)
         mockStage(true)
         mockProgramAccess(false)
@@ -142,7 +167,7 @@ class EventInitialRepositoryImplTest {
         nonEditableStatus.add(EventStatus.SKIPPED)
         val shouldBlockEdition = !d2.eventModule().eventService().blockingIsEditable(eventUid) &&
             nonEditableStatus.contains(
-                d2.eventModule().events().uid(eventUid).blockingGet().status()
+                d2.eventModule().events().uid(eventUid).blockingGet()?.status(),
             )
 
         val editableField = accessDataWrite && !shouldBlockEdition
@@ -151,7 +176,7 @@ class EventInitialRepositoryImplTest {
 
     private fun mockProgramAccess(hasAccess: Boolean) {
         whenever(
-            d2.programModule().programs().uid("programUid").blockingGet()
+            d2.programModule().programs().uid("programUid").blockingGet(),
         ) doReturn Program.builder()
             .uid("programUid")
             .access(Access.create(true, true, DataAccess.create(true, hasAccess)))
@@ -165,19 +190,19 @@ class EventInitialRepositoryImplTest {
             .access(Access.create(true, true, DataAccess.create(true, hasAccess)))
             .build()
         whenever(
-            d2.programModule().programStages().uid(stageUid).get()
+            d2.programModule().programStages().uid(stageUid).get(),
         ) doReturn Single.just(
-            stage
+            stage,
 
         )
         whenever(
-            d2.programModule().programStages().uid(stageUid).blockingGet()
+            d2.programModule().programStages().uid(stageUid).blockingGet(),
         ) doReturn stage
     }
 
     private fun mockEnrollment(enrollmentUid: String?) {
         whenever(
-            d2.enrollmentModule().enrollments().uid(enrollmentUid).blockingGet()
+            d2.enrollmentModule().enrollments().uid(enrollmentUid).blockingGet(),
         ) doReturn if (enrollmentUid != null) {
             Enrollment.builder()
                 .uid(enrollmentUid)

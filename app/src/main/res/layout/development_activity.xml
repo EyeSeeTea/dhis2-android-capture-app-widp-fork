@@ -24,60 +24,6 @@
                     style="@style/TextPrimary"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@color/primaryAlpha"
-                    android:text="Analytics information"
-                    android:textColor="@color/colorAccent" />
-
-                <EditText
-                    android:id="@+id/matomoUrl"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Matomo url"
-                    android:inputType="textUri" />
-
-                <EditText
-                    android:id="@+id/matomoId"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Matomo id"
-                    android:inputType="number" />
-
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/matomoButton"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    android:text="Set matomo tracker" />
-
-                <TextView
-                    style="@style/TextPrimary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:background="@color/primaryAlpha"
-                    android:text="Change locale"
-                    android:textColor="@color/colorAccent" />
-
-                <EditText
-                    android:id="@+id/locale"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="Locale" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/localeButton"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    android:text="Set locale" />
-
-                <TextView
-                    style="@style/TextPrimary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:background="@color/primaryAlpha"
                     android:text="Icon tester"
@@ -170,23 +116,6 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:background="@color/primaryAlpha"
-                    android:text="Break the glass"
-                    android:textColor="@color/colorAccent" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/breakGlassButton"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    android:text="Show dialog" />
-
-                <TextView
-                    style="@style/TextPrimary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:background="@color/primaryAlpha"
                     android:text="Crash button"
                     android:textColor="@color/colorAccent" />
 
@@ -221,16 +150,91 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:background="@color/primaryAlpha"
-                    android:text="Table View"
+                    android:text="Tracker Import conflicts"
                     android:textColor="@color/colorAccent" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/tableButton"
+                    android:id="@+id/addConflicts"
                     style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="end"
-                    android:text="Tables" />
+                    android:text="Add conflicts" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/clearConflicts"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:text="Clear conflicts" />
+
+                <TextView
+                    style="@style/TextPrimary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@color/primaryAlpha"
+                    android:text="DHIS2 UI components"
+                    android:textColor="@color/colorAccent" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/components"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:text="UI Components" />
+
+
+                <TextView
+                    style="@style/TextPrimary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@color/primaryAlpha"
+                    android:text="Force Multi text"
+                    android:textColor="@color/colorAccent" />
+
+                <TextView
+                    style="@style/TextSecondary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Transforms TEXT data elements with option sets into MULTI TEXT."
+                    android:textColor="@color/text_color" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/multitext"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:text="UPDATE" />
+                <TextView
+                    style="@style/TextPrimary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@color/primaryAlpha"
+                    android:text="Force custom icons"
+                    android:textColor="@color/colorAccent" />
+
+                <TextView
+                    style="@style/TextSecondary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="This will take one file resource image and set it for all available metadata icons"
+                    android:textColor="@color/text_color" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/forceCustomIcon"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:text="Run" />
             </LinearLayout>
         </ScrollView>
     </androidx.constraintlayout.widget.ConstraintLayout>

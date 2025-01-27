@@ -1,22 +1,19 @@
 package org.dhis2.usescases.main.program
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.doReturnConsecutively
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.android.plugins.RxAndroidPlugins
 import io.reactivex.schedulers.Schedulers
 import org.dhis2.commons.filters.FilterManager
 import org.dhis2.commons.filters.data.FilterPresenter
+import org.dhis2.commons.resources.MetadataIconProvider
 import org.dhis2.commons.resources.ResourceManager
 import org.dhis2.data.dhislogic.DhisProgramUtils
 import org.dhis2.data.dhislogic.DhisTrackedEntityInstanceUtils
 import org.dhis2.data.schedulers.TrampolineSchedulerProvider
 import org.dhis2.data.service.SyncStatusData
+import org.dhis2.ui.MetadataIconData
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.common.Access
 import org.hisp.dhis.android.core.common.DataAccess
@@ -34,6 +31,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doReturnConsecutively
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 class ProgramRepositoryImplTest {
     @Rule
@@ -48,6 +50,9 @@ class ProgramRepositoryImplTest {
     private val dhisTeiUtils: DhisTrackedEntityInstanceUtils = mock()
     private val scheduler = TrampolineSchedulerProvider()
     private val resourceManager: ResourceManager = mock()
+    private val metadataIconProvider: MetadataIconProvider = mock {
+        on { invoke(any(), any()) } doReturn MetadataIconData.defaultIcon()
+    }
 
     @Before
     fun setUp() {
@@ -59,19 +64,20 @@ class ProgramRepositoryImplTest {
             dhisProgramUtils,
             dhisTeiUtils,
             resourceManager,
-            scheduler
+            metadataIconProvider,
+            scheduler,
         )
         whenever(
-            resourceManager.defaultDataSetLabel()
+            resourceManager.defaultDataSetLabel(),
         ) doReturn "dataset"
         whenever(
-            resourceManager.defaultEventLabel()
+            resourceManager.defaultEventLabel(),
         ) doReturn "event"
         whenever(
-            resourceManager.defaultTeiLabel()
+            resourceManager.defaultTeiLabel(),
         ) doReturn "tei"
         whenever(
-            d2.dataSetModule().dataSets().uid(anyString()).blockingGet()
+            d2.dataSetModule().dataSets().uid(anyString()).blockingGet(),
         ) doReturn DataSet.builder()
             .uid("dataSetUid")
             .description("description")
@@ -79,7 +85,7 @@ class ProgramRepositoryImplTest {
                 ObjectStyle.builder()
                     .color("color")
                     .icon("icon")
-                    .build()
+                    .build(),
             )
             .access(
                 Access.create(
@@ -87,9 +93,9 @@ class ProgramRepositoryImplTest {
                     true,
                     DataAccess.create(
                         true,
-                        true
-                    )
-                )
+                        true,
+                    ),
+                ),
             )
             .build()
     }
@@ -104,13 +110,13 @@ class ProgramRepositoryImplTest {
     fun `Should return list of data set ProgramViewModel`() {
         val syncStatusData = SyncStatusData(true)
         whenever(
-            filterPresenter.filteredDataSetInstances()
+            filterPresenter.filteredDataSetInstances(),
         ) doReturn mock()
         whenever(
-            filterPresenter.filteredDataSetInstances().get()
+            filterPresenter.filteredDataSetInstances().get(),
         ) doReturn Single.just(mockedDataSetInstanceSummaries())
         whenever(
-            filterPresenter.isAssignedToMeApplied()
+            filterPresenter.isAssignedToMeApplied(),
         ) doReturn false
 
         val testObserver = programRepository.aggregatesModels(syncStatusData).test()
@@ -126,16 +132,16 @@ class ProgramRepositoryImplTest {
     fun `Should set data set count to 0 if assign to me is active`() {
         val syncStatusData = SyncStatusData(true)
         whenever(
-            filterPresenter.filteredDataSetInstances()
+            filterPresenter.filteredDataSetInstances(),
         ) doReturn mock()
         whenever(
-            filterPresenter.filteredDataSetInstances().get()
+            filterPresenter.filteredDataSetInstances().get(),
         ) doReturn Single.just(mockedDataSetInstanceSummaries())
         whenever(
-            filterPresenter.isAssignedToMeApplied()
+            filterPresenter.isAssignedToMeApplied(),
         ) doReturn true
         whenever(
-            filterPresenter.areFiltersActive()
+            filterPresenter.areFiltersActive(),
         ) doReturn true
 
         val testObserver = programRepository.aggregatesModels(syncStatusData).test()
@@ -156,7 +162,7 @@ class ProgramRepositoryImplTest {
         val syncStatusData = SyncStatusData(true)
         initWheneverForPrograms()
         whenever(
-            filterPresenter.areFiltersActive()
+            filterPresenter.areFiltersActive(),
         ) doReturn false
         val testOvserver = programRepository.programModels(syncStatusData).test()
 
@@ -174,24 +180,24 @@ class ProgramRepositoryImplTest {
 
     private fun initWheneverForPrograms() {
         whenever(
-            dhisProgramUtils.getProgramsInCaptureOrgUnits()
+            dhisProgramUtils.getProgramsInCaptureOrgUnits(),
         ) doReturn Flowable.just(
-            mockedPrograms()
+            mockedPrograms(),
         )
         whenever(
-            dhisProgramUtils.getProgramRecordLabel(any(), any(), any())
+            dhisProgramUtils.getProgramRecordLabel(any(), any(), any()),
         ) doReturnConsecutively arrayListOf("event", "tei")
         whenever(
-            dhisProgramUtils.getProgramState(any<Program>())
+            dhisProgramUtils.getProgramState(any<Program>()),
         ) doReturnConsecutively arrayListOf(State.SYNCED, State.TO_POST)
         whenever(
-            d2.programModule().programs().uid(any()).blockingGet()
+            d2.programModule().programs().uid(any()).blockingGet(),
         )doReturnConsecutively mockedPrograms()
         whenever(
-            filterPresenter.filteredEventProgram(any(), any())
+            filterPresenter.filteredEventProgram(any())
         ) doReturn mock()
         whenever(
-            filterPresenter.filteredEventProgram(any()).blockingGet()
+            filterPresenter.filteredEventProgram(any()).blockingGet(),
         ) doReturn listOf(
             Event.builder().uid("0").syncState(State.SYNCED).build(),
             Event.builder().uid("1").syncState(State.SYNCED).build(),
@@ -203,20 +209,20 @@ class ProgramRepositoryImplTest {
             Event.builder().uid("7").syncState(State.SYNCED).build(),
             Event.builder().uid("8").syncState(State.SYNCED).build(),
             Event.builder().uid("9").syncState(State.SYNCED).build(),
-            Event.builder().uid("10").syncState(State.RELATIONSHIP).build()
+            Event.builder().uid("10").syncState(State.RELATIONSHIP).build(),
         )
         whenever(
-            filterPresenter.filteredTrackerProgram(any())
+            filterPresenter.filteredTrackerProgram(any()),
         ) doReturn mock()
         whenever(
-            filterPresenter.filteredTrackerProgram(any()).offlineFirst()
+            filterPresenter.filteredTrackerProgram(any()).offlineFirst(),
         ) doReturn mock()
         whenever(
-            filterPresenter.filteredTrackerProgram(any<Program>()).offlineFirst().blockingGetUids()
+            filterPresenter.filteredTrackerProgram(any<Program>()).offlineFirst().blockingGetUids(),
         ) doReturn arrayListOf("teiUid1", "teiUid2")
 
         whenever(
-            dhisTeiUtils.hasOverdueInProgram(any(), any())
+            dhisTeiUtils.hasOverdueInProgram(any(), any()),
         ) doReturn true
     }
 
@@ -235,7 +241,7 @@ class ProgramRepositoryImplTest {
                 .dataSetInstanceCount(1)
                 .valueCount(5)
                 .state(State.TO_UPDATE)
-                .build()
+                .build(),
         )
     }
 
@@ -245,18 +251,20 @@ class ProgramRepositoryImplTest {
                 .uid("program1")
                 .displayName("program1")
                 .programType(ProgramType.WITHOUT_REGISTRATION)
+                .style(ObjectStyle.builder().build())
                 .build(),
             Program.builder()
                 .uid("program2")
                 .displayName("program2")
                 .programType(ProgramType.WITH_REGISTRATION)
+                .style(ObjectStyle.builder().build())
                 .trackedEntityType(
                     TrackedEntityType.builder()
                         .uid("teType")
                         .displayName("Person")
-                        .build()
+                        .build(),
                 )
-                .build()
+                .build(),
         )
     }
 }

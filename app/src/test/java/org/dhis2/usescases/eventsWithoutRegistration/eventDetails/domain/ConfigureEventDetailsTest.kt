@@ -1,14 +1,13 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain
 
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
-import java.util.Date
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.dhis2.commons.data.EventCreationType
+import org.dhis2.commons.resources.MetadataIconProvider
+import org.dhis2.ui.MetadataIconData
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.data.EventDetailsRepository
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.providers.EventDetailResourcesProvider
+import org.hisp.dhis.android.core.common.ObjectStyle
 import org.hisp.dhis.android.core.enrollment.EnrollmentStatus
 import org.hisp.dhis.android.core.event.Event
 import org.hisp.dhis.android.core.event.EventEditableStatus.Editable
@@ -20,12 +19,22 @@ import org.hisp.dhis.android.core.program.ProgramStage
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+import java.util.Date
 
 class ConfigureEventDetailsTest {
 
-    private val programStage: ProgramStage = mock()
+    private val programStage: ProgramStage = mock {
+        on { style() } doReturn ObjectStyle.builder().build()
+    }
     private val event: Event = mock()
     private val program: Program = mock()
+    private val metadataIconProvider: MetadataIconProvider = mock {
+        on { invoke(any()) } doReturn MetadataIconData.defaultIcon()
+    }
     private val repository: EventDetailsRepository = mock {
         on { getProgramStage() } doReturn programStage
         on { hasAccessDataWrite() } doReturn true
@@ -46,7 +55,8 @@ class ConfigureEventDetailsTest {
             repository = repository,
             resourcesProvider = resourcesProvider,
             creationType = EventCreationType.ADDNEW,
-            enrollmentStatus = EnrollmentStatus.ACTIVE
+            enrollmentStatus = EnrollmentStatus.ACTIVE,
+            metadataIconProvider,
         )
         // And event creation should be completed
         val selectedDate = Date()
@@ -60,7 +70,7 @@ class ConfigureEventDetailsTest {
             catOptionComboUid = null,
             isCatComboCompleted = isCatComboCompleted,
             coordinates = null,
-            tempCreate = null
+            tempCreate = null,
         ).first()
 
         // Then action button should be visible
@@ -75,7 +85,8 @@ class ConfigureEventDetailsTest {
             repository = repository,
             resourcesProvider = resourcesProvider,
             creationType = EventCreationType.ADDNEW,
-            enrollmentStatus = EnrollmentStatus.ACTIVE
+            enrollmentStatus = EnrollmentStatus.ACTIVE,
+            metadataIconProvider,
         )
         // And event creation should be uncompleted
         val selectedDate = null
@@ -89,7 +100,7 @@ class ConfigureEventDetailsTest {
             catOptionComboUid = null,
             isCatComboCompleted = isCatComboCompleted,
             coordinates = null,
-            tempCreate = null
+            tempCreate = null,
         ).first()
 
         // Then action button should be invisible
@@ -105,23 +116,29 @@ class ConfigureEventDetailsTest {
             repository = repository,
             resourcesProvider = resourcesProvider,
             creationType = EventCreationType.ADDNEW,
-            enrollmentStatus = EnrollmentStatus.ACTIVE
+            enrollmentStatus = EnrollmentStatus.ACTIVE,
+            metadataIconProvider,
         )
         // And event status is active
         whenever(event.status()) doReturn EventStatus.ACTIVE
         whenever(repository.getEditableStatus()) doReturn Editable()
 
+        // And event creation should be completed
+        val selectedDate = Date()
+        val selectedOrgUnit = ORG_UNIT_UID
+        val isCatComboCompleted = true
+
         // When button is checked
         val eventDetails = configureEventDetails.invoke(
-            selectedDate = null,
-            selectedOrgUnit = null,
+            selectedDate = selectedDate,
+            selectedOrgUnit = selectedOrgUnit,
             catOptionComboUid = null,
-            isCatComboCompleted = false,
+            isCatComboCompleted = isCatComboCompleted,
             coordinates = null,
-            tempCreate = null
+            tempCreate = null,
         ).first()
 
-        // Then action button should be invisible
+        // Then action button should be visible
         assertTrue(eventDetails.isActionButtonVisible)
         assert(eventDetails.actionButtonText.equals(UPDATE))
     }
@@ -135,7 +152,8 @@ class ConfigureEventDetailsTest {
             repository = repository,
             resourcesProvider = resourcesProvider,
             creationType = EventCreationType.ADDNEW,
-            enrollmentStatus = EnrollmentStatus.ACTIVE
+            enrollmentStatus = EnrollmentStatus.ACTIVE,
+            metadataIconProvider,
         )
         // And event is not editable
         whenever(repository.getEditableStatus()) doReturn NonEditable(BLOCKED_BY_COMPLETION)
@@ -147,7 +165,7 @@ class ConfigureEventDetailsTest {
             catOptionComboUid = null,
             isCatComboCompleted = false,
             coordinates = null,
-            tempCreate = null
+            tempCreate = null,
         ).first()
 
         // Then action button should be invisible
@@ -164,7 +182,8 @@ class ConfigureEventDetailsTest {
                 repository = repository,
                 resourcesProvider = resourcesProvider,
                 creationType = EventCreationType.DEFAULT,
-                enrollmentStatus = EnrollmentStatus.COMPLETED
+                enrollmentStatus = EnrollmentStatus.COMPLETED,
+                metadataIconProvider,
             )
 
             // And user has authorities to reopen
@@ -177,7 +196,7 @@ class ConfigureEventDetailsTest {
                 catOptionComboUid = null,
                 isCatComboCompleted = false,
                 coordinates = null,
-                tempCreate = null
+                tempCreate = null,
             ).first()
 
             // Then reopen button should be visible
@@ -194,7 +213,8 @@ class ConfigureEventDetailsTest {
                 repository = repository,
                 resourcesProvider = resourcesProvider,
                 creationType = EventCreationType.DEFAULT,
-                enrollmentStatus = EnrollmentStatus.ACTIVE
+                enrollmentStatus = EnrollmentStatus.ACTIVE,
+                metadataIconProvider,
             )
 
             // And user has authorities to reopen
@@ -207,7 +227,7 @@ class ConfigureEventDetailsTest {
                 catOptionComboUid = null,
                 isCatComboCompleted = false,
                 coordinates = null,
-                tempCreate = null
+                tempCreate = null,
             ).first()
 
             // Then reopen button should be visible

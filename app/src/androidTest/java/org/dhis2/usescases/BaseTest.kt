@@ -1,11 +1,9 @@
 package org.dhis2.usescases
 
 import android.content.Context
-import androidx.test.espresso.Espresso
+import android.os.Build
 import androidx.test.espresso.IdlingRegistry
-import androidx.test.espresso.action.ViewActions
 import androidx.test.espresso.intent.Intents
-import androidx.test.espresso.matcher.ViewMatchers
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import org.dhis2.AppTest
@@ -20,10 +18,13 @@ import org.dhis2.common.keystore.KeyStoreRobot.Companion.USERNAME
 import org.dhis2.common.mockwebserver.MockWebServerRobot
 import org.dhis2.common.preferences.PreferencesRobot
 import org.dhis2.common.rules.DisableAnimations
+import org.dhis2.commons.featureconfig.model.Feature
 import org.dhis2.commons.idlingresource.CountingIdlingResourceSingleton
 import org.dhis2.commons.idlingresource.SearchIdlingResourceSingleton
 import org.dhis2.commons.prefs.Preference
 import org.dhis2.form.ui.idling.FormCountingIdlingResource
+import org.dhis2.usescases.eventsWithoutRegistration.EventIdlingResourceSingleton
+import org.dhis2.usescases.programEventDetail.eventList.EventListIdlingResourceSingleton
 import org.dhis2.usescases.teiDashboard.dashboardfragments.teidata.TeiDataIdlingResourceSingleton
 import org.junit.After
 import org.junit.Before
@@ -47,10 +48,18 @@ open class BaseTest {
     val timeout: Timeout = Timeout(120000, TimeUnit.MILLISECONDS)
 
     @get:Rule
-    var permissionRule = GrantPermissionRule.grant(
-        android.Manifest.permission.ACCESS_FINE_LOCATION,
-        android.Manifest.permission.CAMERA, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-    )
+    var permissionRule = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
+        GrantPermissionRule.grant(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.CAMERA
+        )
+    } else {
+        GrantPermissionRule.grant(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+        )
+    }
 
     @Before
     @Throws(Exception::class)
@@ -65,25 +74,30 @@ open class BaseTest {
             keyStoreRobot = providesKeyStoreRobot(context)
             preferencesRobot = providesPreferencesRobot(context)
             mockWebServerRobot = providesMockWebserverRobot(context)
+            disableComposeForms()
         }
     }
 
     private fun registerCountingIdlingResource() {
         IdlingRegistry.getInstance().register(
+            EventListIdlingResourceSingleton.countingIdlingResource,
             CountingIdlingResourceSingleton.countingIdlingResource,
             FormCountingIdlingResource.countingIdlingResource,
             SearchIdlingResourceSingleton.countingIdlingResource,
-            TeiDataIdlingResourceSingleton.countingIdlingResource
+            TeiDataIdlingResourceSingleton.countingIdlingResource,
+            EventIdlingResourceSingleton.countingIdlingResource,
         )
     }
 
     private fun unregisterCountingIdlingResource() {
         IdlingRegistry.getInstance()
             .unregister(
+                EventListIdlingResourceSingleton.countingIdlingResource,
                 CountingIdlingResourceSingleton.countingIdlingResource,
                 FormCountingIdlingResource.countingIdlingResource,
                 SearchIdlingResourceSingleton.countingIdlingResource,
-                TeiDataIdlingResourceSingleton.countingIdlingResource
+                TeiDataIdlingResourceSingleton.countingIdlingResource,
+                EventIdlingResourceSingleton.countingIdlingResource,
             )
     }
 
@@ -121,7 +135,7 @@ open class BaseTest {
         preferencesRobot.saveValue(Preference.DATE_PICKER, true)
     }
 
-    private fun closeKeyboard(){
+    private fun closeKeyboard() {
         BaseRobot().closeKeyboard()
     }
 
@@ -151,11 +165,23 @@ open class BaseTest {
         (context.applicationContext as AppTest).deleteDatabase(DB_TO_IMPORT)
     }
 
+    private fun disableComposeForms() {
+        preferencesRobot.saveValue(SET_FROM_TESTING, true)
+        preferencesRobot.saveValue(Feature.COMPOSE_FORMS.name, false)
+    }
+
+
+    fun enableComposeForms() {
+        preferencesRobot.saveValue(SET_FROM_TESTING, true)
+        preferencesRobot.saveValue(Feature.COMPOSE_FORMS.name, true)
+    }
+
     companion object {
         @ClassRule
         @JvmField
         val disableAnimationsTestRule = DisableAnimations()
         const val MOCK_SERVER_URL = "http://127.0.0.1:8080"
         const val API = "api"
+        const val SET_FROM_TESTING = "SET_FROM_TESTING"
     }
 }

@@ -14,7 +14,7 @@ import timber.log.Timber
 class IndicatorsPresenter(
     val schedulerProvider: SchedulerProvider,
     val view: IndicatorsView,
-    val indicatorRepository: IndicatorRepository
+    val indicatorRepository: IndicatorRepository,
 ) {
 
     var compositeDisposable: CompositeDisposable = CompositeDisposable()
@@ -24,38 +24,56 @@ class IndicatorsPresenter(
         compositeDisposable.add(
             publishProcessor.startWith(Unit)
                 .flatMap { indicatorRepository.fetchData() }
-                .defaultSubscribe(schedulerProvider, { view.swapAnalytics(it) }, { Timber.d(it) })
+                .defaultSubscribe(schedulerProvider, { view.swapAnalytics(it) }, { Timber.d(it) }),
         )
     }
 
     fun onDettach() = compositeDisposable.clear()
 
     fun displayMessage(message: String) = view.displayMessage(message)
-    fun filterByPeriod(chartModel: ChartModel, selectedPeriods: List<RelativePeriod>) {
-        indicatorRepository.filterByPeriod(chartModel, selectedPeriods)
+    fun filterByPeriod(
+        chartModel: ChartModel,
+        selectedPeriods: List<RelativePeriod>,
+        lineListingColumnId: Int?,
+    ) {
+        indicatorRepository.filterByPeriod(chartModel, selectedPeriods, lineListingColumnId)
         publishProcessor.onNext(Unit)
     }
 
     fun filterByOrgUnit(
         chartModel: ChartModel,
         selectedPeriods: List<OrganisationUnit>,
-        filterType: OrgUnitFilterType
+        filterType: OrgUnitFilterType,
+        lineListingColumnId: Int?,
     ) {
-        indicatorRepository.filterByOrgUnit(chartModel, selectedPeriods, filterType)
+        indicatorRepository.filterByOrgUnit(
+            chartModel,
+            selectedPeriods,
+            filterType,
+            lineListingColumnId,
+        )
         publishProcessor.onNext(Unit)
     }
 
     fun resetFilter(chartModel: ChartModel, filterType: ChartFilter) {
-        chartModel.graph.visualizationUid?.let { visualizationUid ->
+        chartModel.graph.visualizationUid?.let { _ ->
             when (filterType) {
                 ChartFilter.PERIOD -> indicatorRepository.filterByPeriod(
                     chartModel,
-                    emptyList()
+                    emptyList(),
+                    null,
                 )
+
                 ChartFilter.ORG_UNIT -> indicatorRepository.filterByOrgUnit(
                     chartModel,
                     emptyList(),
-                    OrgUnitFilterType.NONE
+                    OrgUnitFilterType.NONE,
+                    null,
+                )
+
+                ChartFilter.COLUMN -> indicatorRepository.filterLineListing(
+                    chartModel,
+                    null,
                 )
             }
         }

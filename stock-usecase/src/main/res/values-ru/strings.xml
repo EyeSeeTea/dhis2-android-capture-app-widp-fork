@@ -1,0 +1,31 @@
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="title_activity_home">Главная</string>
+    <string name="action_settings">Настройки</string>
+
+    <string name="discard">Отмена</string>
+    <string name="sign_in">Войти в систему</string>
+    <string name="username">Имя пользователя</string>
+    <string name="password">Пароль</string>
+    <!-- FloatingActionButtons -->
+    <string name="proceed">Продолжить</string>
+    <string name="delete">Удалить</string>
+    <string name="ok">ОК</string>
+    <string name="cancel">Отмена</string>
+    <string name="from">От</string>
+    <string name="language">Язык</string>
+    <string name="logout">Выход из системы</string>
+
+
+    <!-- Stock table -->
+    <string name="item">Пункт</string>
+    <string name="prompt_email">адрес электронной почты</string>
+    <string name="prompt_password">Пароль</string>
+    <string name="action_sign_in_short">Войти в систему</string>
+    <string name="content_desc_search">Поиск</string>
+    <string name="confirm_transaction_label">Подтвердить</string>
+    <string name="invalid_quantity">Недействительный</string>
+    <string name="done_task">Главная</string>
+    <string name="back">Назад</string>
+    <string name="action_sync">Отправить</string>
+    <string name="count">Количество</string>
+    </resources>

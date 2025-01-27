@@ -1,6 +1,7 @@
 package org.dhis2.form.model
 
 import androidx.databinding.ObservableField
+import org.dhis2.commons.orgunitselector.OrgUnitSelectorScope
 import org.dhis2.form.ui.event.RecyclerViewUiEvents
 import org.dhis2.form.ui.event.UiEventFactory
 import org.dhis2.form.ui.intent.FormIntent
@@ -9,6 +10,7 @@ import org.dhis2.form.ui.intent.FormIntent.OnSection
 import org.dhis2.form.ui.style.FormUiModelStyle
 import org.hisp.dhis.android.core.common.ValueType
 import org.hisp.dhis.android.core.option.Option
+import org.hisp.dhis.mobile.ui.designsystem.component.SelectableDates
 
 data class SectionUiModelImpl(
     override val uid: String,
@@ -33,8 +35,8 @@ data class SectionUiModelImpl(
     override val renderingType: UiRenderType? = null,
     override val keyboardActionType: KeyboardActionType? = null,
     override val fieldMask: String? = null,
+    var isOpen: Boolean? = false,
     override val url: String? = null,
-    var isOpen: Boolean = false,
     var totalFields: Int = 0,
     var completedFields: Int = 0,
     var errors: Int = 0,
@@ -42,7 +44,12 @@ data class SectionUiModelImpl(
     var rendering: String? = null,
     var selectedField: ObservableField<String?> = ObservableField(null),
     override val isLoadingData: Boolean = false,
-    override var optionSetConfiguration: OptionSetConfiguration? = null
+    override var optionSetConfiguration: OptionSetConfiguration? = null,
+    override val autocompleteList: List<String>? = null,
+    override val orgUnitSelectorScope: OrgUnitSelectorScope? = null,
+    override val selectableDates: SelectableDates? = null,
+    override val eventCategories: List<EventCategory>? = null,
+    override val periodSelector: PeriodSelector? = null,
 ) : FieldUiModel {
 
     private var sectionNumber: Int = 0
@@ -52,7 +59,7 @@ data class SectionUiModelImpl(
     private var callback: FieldUiModel.Callback? = null
 
     fun hasToShowDescriptionIcon(isTitleEllipsed: Boolean): Boolean {
-        return description != null && description.isNotEmpty() || isTitleEllipsed
+        return !description.isNullOrEmpty() || isTitleEllipsed
     }
 
     fun isClosingSection(): Boolean = uid == CLOSING_SECTION_UID
@@ -117,8 +124,8 @@ data class SectionUiModelImpl(
         callback!!.intent(
             OnFocus(
                 uid,
-                value
-            )
+                value,
+            ),
         )
     }
 
@@ -126,8 +133,8 @@ data class SectionUiModelImpl(
         callback?.recyclerViewUiEvents(
             RecyclerViewUiEvents.ShowDescriptionLabelDialog(
                 label,
-                description
-            )
+                description,
+            ),
         )
     }
 
@@ -142,7 +149,7 @@ data class SectionUiModelImpl(
     override val textColor: Int?
         get() = style?.textColor(error, warning)
 
-    override val backGroundColor: Pair<Array<Int>, Int>?
+    override val backGroundColor: Pair<Array<Int>, Int?>?
         get() =
             valueType?.let {
                 style?.backgroundColor(it, error, warning)
@@ -157,19 +164,33 @@ data class SectionUiModelImpl(
     override val isNegativeChecked: Boolean
         get() = false
 
-    override fun onNext() {}
+    override fun onNext() {
+        // Not necessary in this implementation
+    }
 
-    override fun onTextChange(value: CharSequence?) {}
+    override fun onTextChange(value: CharSequence?) {
+        // Not necessary in this implementation
+    }
 
-    override fun onClear() {}
+    override fun onClear() {
+        // Not necessary in this implementation
+    }
 
-    override fun onSave(value: String?) {}
+    override fun onSave(value: String?) {
+        // Not necessary in this implementation
+    }
 
-    override fun onSaveBoolean(boolean: Boolean) {}
+    override fun onSaveBoolean(boolean: Boolean) {
+        // Not necessary in this implementation
+    }
 
-    override fun onSaveOption(option: Option) {}
+    override fun onSaveOption(option: Option) {
+        // Not necessary in this implementation
+    }
 
     override fun setValue(value: String?) = this.copy(value = value)
+
+    override fun setSelectableDates(selectableDates: SelectableDates?): FieldUiModel = this.copy(selectableDates = selectableDates)
 
     override fun setIsLoadingData(isLoadingData: Boolean) = this.copy(isLoadingData = isLoadingData)
 

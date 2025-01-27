@@ -3,16 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <data>
-
-    </data>
-
 
     <org.dhis2.utils.dialFloatingActionButton.DialFloatingActionButtonLayout
         android:id="@+id/dialFabLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/white"
+        android:background="@drawable/ic_front_home_backdrop_bg"
         app:clipCorners="@{16}"
         app:fab_extra_bottom_margin="@{16}">
 
@@ -25,15 +21,12 @@
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
             tools:listitem="@layout/item_relationship" />
 
-        <TextView
+        <androidx.compose.ui.platform.ComposeView
             android:id="@+id/empty_relationships"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@color/white"
-            android:gravity="center"
-            android:padding="42dp"
-            android:text="@string/empty_relationships"
-            android:textSize="@dimen/primaryTextSize" />
+            android:gravity="center" />
 
         <com.mapbox.mapboxsdk.maps.MapView
             android:id="@+id/mapView"
@@ -44,8 +37,8 @@
             app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:mapbox_uiAttributionGravity="top|start"
-            app:mapbox_uiLogoGravity="top|start"
+            app:maplibre_uiAttributionGravity="top|start"
+            app:maplibre_uiLogoGravity="top|start"
             tools:visibility="visible" />
 
         <ImageView

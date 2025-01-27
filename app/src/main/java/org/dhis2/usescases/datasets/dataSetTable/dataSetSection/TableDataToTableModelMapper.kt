@@ -1,6 +1,5 @@
 package org.dhis2.usescases.datasets.dataSetTable.dataSetSection
 
-import java.util.SortedMap
 import org.dhis2.R
 import org.dhis2.composetable.model.RowHeader
 import org.dhis2.composetable.model.TableCell
@@ -9,6 +8,8 @@ import org.dhis2.composetable.model.TableHeaderCell
 import org.dhis2.composetable.model.TableHeaderRow
 import org.dhis2.composetable.model.TableModel
 import org.dhis2.composetable.model.TableRowModel
+import org.hisp.dhis.android.core.common.ValueType
+import java.util.SortedMap
 
 class TableDataToTableModelMapper(val mapFieldValueToUser: MapFieldValueToUser) {
     operator fun invoke(tableData: TableData): TableModel {
@@ -24,10 +25,10 @@ class TableDataToTableModelMapper(val mapFieldValueToUser: MapFieldValueToUser) 
                                 categoryOption.displayName()!!
                             }
                             TableHeaderCell(value = headerLabel)
-                        }
+                        },
                 )
             } ?: emptyList(),
-            hasTotals = tableData.showRowTotals
+            hasTotals = tableData.showRowTotals,
         )
 
         val tableRows = tableData.rows()?.mapIndexed { rowIndex, dataElement ->
@@ -38,7 +39,7 @@ class TableDataToTableModelMapper(val mapFieldValueToUser: MapFieldValueToUser) 
                     rowIndex,
                     tableData.hasDataElementDecoration && dataElement.displayDescription() != null,
                     dataElement.displayDescription()
-                        ?: mapFieldValueToUser.resources.getString(R.string.empty_description)
+                        ?: mapFieldValueToUser.resources.getString(R.string.empty_description),
                 ),
                 values = tableData.fieldViewModels[rowIndex].mapIndexed { columnIndex, field ->
                     columnIndex to TableCell(
@@ -48,23 +49,22 @@ class TableDataToTableModelMapper(val mapFieldValueToUser: MapFieldValueToUser) 
                         value = mapFieldValueToUser.map(field, dataElement),
                         editable = tableData.accessDataWrite && field.editable()!!,
                         mandatory = field.mandatory(),
-                        error = field.error()
+                        error = field.error(),
+                        warning = field.warning(),
+                        isMultiText = dataElement.valueType() == ValueType.MULTI_TEXT,
                     )
                 }.toMap(),
                 isLastRow = rowIndex == (tableData.rows()!!.size - 1),
-                maxLines = if (dataElement.valueType()?.isNumeric == true) {
-                    1
-                } else {
-                    3
-                },
-                dropDownOptions = tableData.fieldViewModels[rowIndex][0].options()
+                maxLines = 3,
+                dropDownOptions = tableData.fieldViewModels[rowIndex][0].optionsList(),
             )
         } ?: emptyList()
 
         return TableModel(
             id = tableData.catCombo()?.uid(),
+            title = tableData.catCombo()?.displayName() ?: "",
             tableHeaderModel = tableHeader,
-            tableRows = tableRows
+            tableRows = tableRows,
         )
     }
 
@@ -73,23 +73,38 @@ class TableDataToTableModelMapper(val mapFieldValueToUser: MapFieldValueToUser) 
             rows = listOf(
                 TableHeaderRow(
                     cells = listOf(
-                        TableHeaderCell(value = "Value")
-                    )
-                )
-            )
+                        TableHeaderCell(mapFieldValueToUser.resources.getString(R.string.value)),
+                    ),
+                ),
+            ),
         )
         val tableRows = tableData.map { (indicatorName, indicatorValue) ->
             TableRowModel(
-                rowHeader = RowHeader(id = indicatorName, title = indicatorName!!),
+                rowHeader = RowHeader(
+                    id = indicatorName,
+                    title = indicatorName!!,
+                    row = tableData.keys.indexOf(indicatorName),
+                ),
                 values = mapOf(
-                    0 to TableCell(id = indicatorName, value = indicatorValue, editable = false)
-                )
+                    0 to TableCell(
+                        id = indicatorName,
+                        column = 0,
+                        value = indicatorValue,
+                        editable = false,
+                    ),
+                ),
             )
         }
 
         return TableModel(
+            id = INDICATORS_TABLE_ID,
+            title = mapFieldValueToUser.resources.getString(R.string.dashboard_indicators),
             tableHeaderModel = tableHeader,
-            tableRows = tableRows
+            tableRows = tableRows,
         )
+    }
+
+    companion object {
+        const val INDICATORS_TABLE_ID = "indicators"
     }
 }

@@ -7,16 +7,16 @@ data class ProgramRuleValidation(
     val programUid: String,
     val programName: String,
     val metadataIconData: MetadataIconData,
-    val validations: List<RuleValidation>
+    val validations: List<RuleValidation>,
 )
 
 data class RuleValidation(
     val rule: Rule? = null,
     val externalLink: String? = null,
     val conditionError: String? = null,
-    val actionsError: List<String>? = null
+    val actionsError: List<String>? = null,
 ) {
-    fun uid() = rule?.uid()
+    fun uid() = rule?.uid
     fun hasError() = conditionError != null || actionsError != null
     fun errors(): List<String> {
         return mutableListOf<String>().apply {
@@ -25,5 +25,5 @@ data class RuleValidation(
         }
     }
 
-    fun title() = rule?.name() ?: rule?.uid() ?: "-"
+    fun title() = rule?.name ?: rule?.uid ?: "-"
 }

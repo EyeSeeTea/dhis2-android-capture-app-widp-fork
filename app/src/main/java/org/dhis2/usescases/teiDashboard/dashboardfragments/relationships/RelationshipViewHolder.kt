@@ -1,22 +1,24 @@
 package org.dhis2.usescases.teiDashboard.dashboardfragments.relationships
 
 import android.view.View
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.recyclerview.widget.RecyclerView
 import org.dhis2.commons.data.RelationshipViewModel
+import org.dhis2.commons.resources.ColorUtils
 import org.dhis2.commons.resources.setItemPic
 import org.dhis2.databinding.ItemRelationshipBinding
-import org.dhis2.ui.MetadataIconData
 import org.dhis2.ui.setUpMetadataIcon
 
 class RelationshipViewHolder(
-    private val binding: ItemRelationshipBinding
+    private val binding: ItemRelationshipBinding,
+    private val colorUtils: ColorUtils,
 ) :
     RecyclerView.ViewHolder(binding.root) {
 
     init {
         binding.composeToImage.setViewCompositionStrategy(
-            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed,
         )
     }
 
@@ -26,7 +28,7 @@ class RelationshipViewHolder(
                 if (relationships.canBeOpened) {
                     presenter.onRelationshipClicked(
                         relationships.ownerType,
-                        relationships.ownerUid
+                        relationships.ownerUid,
                     )
                 }
             }
@@ -45,21 +47,18 @@ class RelationshipViewHolder(
             relationships.displayImage().let { (imagePath, defaultRes) ->
                 if (relationships.isEvent()) {
                     binding.composeToImage.setUpMetadataIcon(
-                        MetadataIconData(
-                            programColor = relationships.ownerDefaultColorResource,
-                            iconResource = defaultRes,
-                            sizeInDp = 40
-                        ),
-                        false
+                        relationships.ownerDefaultColorResource,
+                        false,
                     )
                 } else {
                     toTeiImage.setItemPic(
                         imagePath,
                         defaultRes,
-                        relationships.ownerDefaultColorResource,
+                        relationships.ownerDefaultColorResource.color.toArgb(),
                         relationships.displayRelationshipName(),
                         relationships.isEvent(),
-                        binding.imageText
+                        binding.imageText,
+                        colorUtils,
                     )
                 }
             }

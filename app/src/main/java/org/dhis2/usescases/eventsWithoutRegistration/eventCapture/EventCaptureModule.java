@@ -16,11 +16,14 @@ import org.dhis2.commons.schedulers.SchedulerProvider;
 import org.dhis2.data.dhislogic.DhisEnrollmentUtils;
 import org.dhis2.data.forms.EventRepository;
 import org.dhis2.data.forms.FormRepository;
-import org.dhis2.data.forms.dataentry.RuleEngineRepository;
 import org.dhis2.data.forms.dataentry.SearchTEIRepository;
 import org.dhis2.data.forms.dataentry.SearchTEIRepositoryImpl;
+import org.dhis2.mobileProgramRules.EvaluationType;
+import org.dhis2.mobileProgramRules.RuleEngineHelper;
+import org.dhis2.form.data.FileController;
 import org.dhis2.form.data.FormValueStore;
 import org.dhis2.form.data.RulesRepository;
+import org.dhis2.form.data.UniqueAttributeController;
 import org.dhis2.form.model.RowAction;
 import org.dhis2.form.ui.FieldViewModelFactory;
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.domain.ConfigureEventCompletionDialog;
@@ -79,8 +82,12 @@ public class EventCaptureModule {
 
     @Provides
     @PerActivity
-    RuleEngineRepository ruleEngineRepository(D2 d2, FormRepository formRepository) {
-        return new EventRuleEngineRepository(d2, formRepository, eventUid);
+    RuleEngineHelper ruleEngineRepository(D2 d2) {
+        if(eventUid == null) return null;
+        return new RuleEngineHelper(
+                new EvaluationType.Event(eventUid),
+                new org.dhis2.mobileProgramRules.RulesRepository(d2)
+        );
     }
 
     @Provides
@@ -96,16 +103,21 @@ public class EventCaptureModule {
             @NonNull D2 d2,
             CrashReportController crashReportController,
             NetworkUtils networkUtils,
-            ResourceManager resourceManager
+            ResourceManager resourceManager,
+            FileController fileController,
+            UniqueAttributeController uniqueAttributeController
     ) {
         return new FormValueStore(
                 d2,
                 eventUid,
                 EntryMode.DE,
                 null,
+                null,
                 crashReportController,
                 networkUtils,
-                resourceManager
+                resourceManager,
+                fileController,
+                uniqueAttributeController
         );
     }
 

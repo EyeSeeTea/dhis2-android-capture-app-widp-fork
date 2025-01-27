@@ -4,12 +4,12 @@ import org.dhis2.R
 import org.dhis2.commons.resources.ResourceManager
 
 class EventCaptureResourcesProvider(
-    private val resourceManager: ResourceManager
+    private val resourceManager: ResourceManager,
 
 ) {
     fun provideRedAlertIcon() = R.drawable.ic_error_outline
 
-    fun provideYellowAlertIcon() = R.drawable.ic_alert
+    fun provideYellowAlertIcon() = R.drawable.ic_warning_alert
 
     fun provideSavedIcon() = R.drawable.ic_saved_check
 
@@ -25,9 +25,13 @@ class EventCaptureResourcesProvider(
 
     fun provideWarningInfo() = resourceManager.getString(R.string.missing_warning_fields_events)
 
+    fun provideWarningInfoCompletedEvent() = resourceManager.getString(R.string.missing_warning_fields_completed_events)
+
     fun provideReview() = R.string.review
 
     fun provideNotNow() = R.string.not_now
+
+    fun provideSaveAnyway() = R.string.save_anyway
 
     fun provideCompleteInfo() = resourceManager.getString(R.string.event_can_be_completed)
 

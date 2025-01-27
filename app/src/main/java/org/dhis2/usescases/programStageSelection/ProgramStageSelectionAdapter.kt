@@ -10,26 +10,26 @@ import org.dhis2.databinding.ItemProgramStageBinding
 import org.hisp.dhis.android.core.program.ProgramStage
 
 class ProgramStageSelectionAdapter(
-    val onItemClick: (ProgramStage) -> Unit
-) : ListAdapter<ProgramStage, ProgramStageSelectionViewHolder>(object :
-        DiffUtil.ItemCallback<ProgramStage>() {
-        override fun areItemsTheSame(oldItem: ProgramStage, newItem: ProgramStage): Boolean {
-            return oldItem.uid() == newItem.uid()
-        }
+    val onItemClick: (ProgramStage) -> Unit,
+) : ListAdapter<ProgramStageData, ProgramStageSelectionViewHolder>(object :
+    DiffUtil.ItemCallback<ProgramStageData>() {
+    override fun areItemsTheSame(oldItem: ProgramStageData, newItem: ProgramStageData): Boolean {
+        return oldItem.programStage.uid() == newItem.programStage.uid()
+    }
 
-        override fun areContentsTheSame(oldItem: ProgramStage, newItem: ProgramStage): Boolean {
-            return oldItem.equals(newItem)
-        }
-    }) {
+    override fun areContentsTheSame(oldItem: ProgramStageData, newItem: ProgramStageData): Boolean {
+        return oldItem == newItem
+    }
+}) {
     override fun onCreateViewHolder(
         parent: ViewGroup,
-        viewType: Int
+        viewType: Int,
     ): ProgramStageSelectionViewHolder {
         val binding: ItemProgramStageBinding = DataBindingUtil.inflate(
             LayoutInflater.from(parent.context),
             R.layout.item_program_stage,
             parent,
-            false
+            false,
         )
         return ProgramStageSelectionViewHolder(binding, onItemClick)
     }

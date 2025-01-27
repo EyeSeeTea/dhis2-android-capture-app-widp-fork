@@ -5,27 +5,34 @@ import org.dhis2.form.R
 
 class EnrollmentFormLabelsProvider(val resourceManager: ResourceManager) {
 
-    fun provideEnrollmentDataSectionLabel() =
-        resourceManager.getString(R.string.enrollment_data_section_label)
+    fun provideEnrollmentDataSectionLabel(programUid: String) =
+        resourceManager.formatWithEnrollmentLabel(
+            programUid,
+            R.string.enrollment_data_section_label_V2,
+            1,
+        )
 
     fun provideSingleSectionLabel() =
         resourceManager.getString(R.string.enrollment_single_section_label)
 
-    fun provideEnrollmentOrgUnitLabel() =
-        resourceManager.getString(R.string.enrolling_ou)
+    fun provideEnrollmentOrgUnitLabel() = resourceManager.getString(R.string.enrolling_ou)
 
-    fun provideTeiCoordinatesLabel() =
-        resourceManager.getString(R.string.tei_coordinates)
+    fun provideTeiCoordinatesLabel() = resourceManager.getString(R.string.tei_coordinates)
 
-    fun provideEnrollmentCoordinatesLabel() =
-        resourceManager.getString(R.string.enrollment_coordinates)
+    fun provideEnrollmentCoordinatesLabel(programUid: String) =
+        resourceManager.formatWithEnrollmentLabel(
+            programUid,
+            R.string.enrollment_coordinates_V2,
+            1,
+        )
 
-    fun provideReservedValueWarning() =
-        resourceManager.getString(R.string.no_reserved_values)
+    fun provideReservedValueWarning() = resourceManager.getString(R.string.no_reserved_values)
 
-    fun provideEnrollmentDateDefaultLabel() =
-        resourceManager.getString(R.string.enrollmment_date)
+    fun provideEnrollmentDateDefaultLabel(programUid: String) = resourceManager.formatWithEnrollmentLabel(
+        programUid,
+        R.string.enrollment_date_V2,
+        1,
+    )
 
-    fun provideIncidentDateDefaultLabel() =
-        resourceManager.getString(R.string.incident_date)
+    fun provideIncidentDateDefaultLabel() = resourceManager.getString(R.string.incident_date)
 }

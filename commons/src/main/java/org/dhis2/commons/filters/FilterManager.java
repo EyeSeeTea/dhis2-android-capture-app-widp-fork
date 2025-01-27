@@ -33,15 +33,26 @@ import io.reactivex.processors.FlowableProcessor;
 import io.reactivex.processors.PublishProcessor;
 import kotlin.Pair;
 import kotlin.collections.CollectionsKt;
+import kotlinx.coroutines.CoroutineScope;
+import kotlinx.coroutines.flow.Flow;
+import kotlinx.coroutines.flow.MutableSharedFlow;
+import kotlinx.coroutines.flow.MutableStateFlow;
 
 public class FilterManager implements Serializable {
 
     public void publishData() {
         filterProcessor.onNext(this);
+        if (scope != null) {
+            FilterManagerExtensionsKt.emit(this, scope, filterFlow);
+        }
     }
 
     public void setCatComboAdapter(CatOptCombFilterAdapter adapter) {
         this.catComboAdapter = adapter;
+    }
+
+    public void clearFlow() {
+        this.scope = null;
     }
 
     public enum PeriodRequest {
@@ -91,6 +102,9 @@ public class FilterManager implements Serializable {
     );
 
     private FlowableProcessor<FilterManager> filterProcessor;
+    private MutableSharedFlow<Integer> filterFlow;
+
+    private CoroutineScope scope;
     private FlowableProcessor<Boolean> ouTreeProcessor;
     private FlowableProcessor<Pair<PeriodRequest, Filters>> periodRequestProcessor;
     private FlowableProcessor<String> catOptComboRequestProcessor;
@@ -137,7 +151,7 @@ public class FilterManager implements Serializable {
         eventStatusFilters = new ArrayList<>();
         enrollmentStatusFilters = new ArrayList<>();
         assignedFilter = false;
-        followUpFilter =false;
+        followUpFilter = false;
         sortingItem = null;
 
         ouFiltersApplied = new ObservableField<>(0);
@@ -151,6 +165,7 @@ public class FilterManager implements Serializable {
         followUpFilterApplied = new ObservableField<>(0);
 
         filterProcessor = PublishProcessor.create();
+        filterFlow = FilterManagerExtensionsKt.initFlow(this);
         ouTreeProcessor = PublishProcessor.create();
         periodRequestProcessor = PublishProcessor.create();
         catOptComboRequestProcessor = PublishProcessor.create();
@@ -233,31 +248,40 @@ public class FilterManager implements Serializable {
 //    endregion
 
     public void addEventStatus(boolean remove, EventStatus... status) {
+        boolean changed = true;
         for (EventStatus eventStatus : status) {
             if (remove)
                 eventStatusFilters.remove(eventStatus);
             else if (!eventStatusFilters.contains(eventStatus))
                 eventStatusFilters.add(eventStatus);
+            else {
+                changed = false;
+            }
         }
-        observableEventStatus.set(eventStatusFilters);
-        if (eventStatusFilters.contains(EventStatus.ACTIVE)) {
-            eventStatusFiltersApplied.set(eventStatusFilters.size() - 1);
-        } else {
-            eventStatusFiltersApplied.set(eventStatusFilters.size());
+        if (changed) {
+            observableEventStatus.set(eventStatusFilters);
+            if (eventStatusFilters.contains(EventStatus.ACTIVE)) {
+                eventStatusFiltersApplied.set(eventStatusFilters.size() - 1);
+            } else {
+                eventStatusFiltersApplied.set(eventStatusFilters.size());
+            }
+            publishData();
         }
-        publishData();
     }
 
     public void addEnrollmentStatus(boolean remove, EnrollmentStatus enrollmentStatus) {
+        boolean changed = true;
         if (remove) {
             enrollmentStatusFilters.remove(enrollmentStatus);
-        } else {
+        } else if (!enrollmentStatusFilters.contains(enrollmentStatus)) {
             enrollmentStatusFilters.clear();
             enrollmentStatusFilters.add(enrollmentStatus);
             observableEnrollmentStatus.set(enrollmentStatus);
+        } else {
+            changed = false;
         }
         enrollmentStatusFiltersApplied.set(enrollmentStatusFilters.size());
-        if (!workingListActive())
+        if (!workingListActive() && changed)
             publishData();
     }
 
@@ -287,7 +311,7 @@ public class FilterManager implements Serializable {
         publishData();
     }
 
-    public void addOrgUnits(List<OrganisationUnit> ouList){
+    public void addOrgUnits(List<OrganisationUnit> ouList) {
         ouFilters.clear();
         ouFilters.addAll(ouList);
         liveDataOUFilter.setValue(ouFilters);
@@ -343,7 +367,13 @@ public class FilterManager implements Serializable {
     }
 
     public Flowable<FilterManager> asFlowable() {
+        this.scope = null;
         return filterProcessor;
+    }
+
+    public Flow<Integer> asFlow(CoroutineScope scope) {
+        this.scope = scope;
+        return filterFlow;
     }
 
     public FlowableProcessor<Pair<PeriodRequest, Filters>> getPeriodRequest() {
@@ -543,7 +573,7 @@ public class FilterManager implements Serializable {
 
     public void clearAllFilters() {
         eventStatusFilters.clear();
-        observableEventStatus.set(eventStatusFilters);
+        observableEventStatus.set(null);
         enrollmentStatusFilters.clear();
         observableEnrollmentStatus.set(null);
         catOptComboFilters.clear();
@@ -685,6 +715,7 @@ public class FilterManager implements Serializable {
         eventStatusFiltersApplied.set(scope.eventStatusCount());
         assignedToMeApplied.set(scope.assignCount());
 
+        publishData();
     }
 
     private int getTotalFilterCounterForWorkingList(WorkingListScope scope) {
@@ -693,9 +724,7 @@ public class FilterManager implements Serializable {
         int enrollmentStatusCount = scope.enrollmentStatusCount() != 0 ? 1 : 0;
         int eventStatusCount = scope.eventStatusCount() != 0 ? 1 : 0;
         int eventAssignedToMeCount = scope.assignCount() != 0 ? 1 : 0;
-        int total = eventDateCount + enrollmentDateCount + enrollmentStatusCount + eventStatusCount + eventAssignedToMeCount;
-        int workingListTotalFilters = total == 0 ? total : total + 1;
-        return workingListTotalFilters;
+        return eventDateCount + enrollmentDateCount + enrollmentStatusCount + eventStatusCount + eventAssignedToMeCount;
     }
 
     public ObservableField<WorkingListScope> observeWorkingListScope() {

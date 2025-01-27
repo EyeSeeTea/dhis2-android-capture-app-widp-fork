@@ -9,12 +9,7 @@
 
         <variable
             name="presenter"
-            type="org.dhis2.usescases.login.LoginPresenter" />
-
-        <variable
-            name="loginModel"
             type="org.dhis2.usescases.login.LoginViewModel" />
-
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -22,41 +17,12 @@
         android:layout_height="match_parent"
         android:background="?colorPrimary">
 
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/logo"
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/topbar"
             android:layout_width="match_parent"
-            android:layout_height="92dp"
+            android:layout_height="wrap_content"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/logo_banner"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_centerInParent="true"
-                android:layout_marginTop="11dp"
-                android:layout_marginBottom="23dp"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:srcCompat="@drawable/ic_dhis_white" />
-
-            <TextView
-                android:id="@+id/app_build_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_alignParentBottom="true"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="12dp"
-                android:textColor="?colorAccent"
-                android:textSize="9sp"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                tools:text="v2.4.X : 2020-09-03 : whatever" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
+            app:layout_constraintTop_toTopOf="parent"/>
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
@@ -64,7 +30,7 @@
             android:background="@color/white"
             app:clipCorners="@{16}"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/logo">
+            app:layout_constraintTop_toBottomOf="@id/topbar">
 
 
             <androidx.constraintlayout.widget.ConstraintLayout
@@ -125,7 +91,7 @@
                             android:layout_height="50dp"
                             android:imeOptions="actionNext"
                             android:inputType="textUri"
-                            android:onTextChanged="@{loginModel::onServerChanged}"
+                            android:onTextChanged="@{presenter::onServerChanged}"
                             android:padding="5dp"
                             android:text="@string/login_https"
                             android:textColor="@color/text_black_333"
@@ -182,7 +148,7 @@
                             android:layout_height="match_parent"
                             android:imeOptions="actionNext"
                             android:inputType="textPersonName"
-                            android:onTextChanged="@{loginModel::onUserChanged}"
+                            android:onTextChanged="@{presenter::onUserChanged}"
                             android:textColor="@color/text_black_333"
                             android:textSize="17sp" />
 
@@ -238,7 +204,62 @@
                             android:layout_height="match_parent"
                             android:imeOptions="actionDone"
                             android:inputType="textPassword"
-                            android:onTextChanged="@{loginModel::onPassChanged}"
+                            android:onTextChanged="@{presenter::onPassChanged}"
+                            android:textColor="@color/text_black_333"
+                            android:textSize="17sp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/twoFactoContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintTop_toBottomOf="@id/passContainer"
+                    android:visibility="gone">
+
+
+                    <ImageView
+                        android:id="@+id/twoFactorCodeIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintBottom_toBottomOf="@id/user_two_factor"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/user_two_factor"
+                        app:srcCompat="@drawable/ic_i_block" />
+
+                    <ImageButton
+                        android:id="@+id/clearTwoFactoButton"
+                        style="@style/ActionIconNoPadding"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@android:color/transparent"
+                        app:layout_constraintBottom_toBottomOf="@id/user_two_factor"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/user_two_factor"
+                        app:srcCompat="@drawable/ic_close" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/user_two_factor"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_centerInParent="true"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="12dp"
+                        android:hint="@string/two_factor_code_hint"
+                        android:textColorHint="@color/text_black_808"
+                        android:theme="@style/loginInputText"
+                        app:layout_constraintEnd_toStartOf="@id/clearTwoFactoButton"
+                        app:layout_constraintStart_toEndOf="@id/twoFactorCodeIcon"
+                        app:layout_constraintTop_toTopOf="parent">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/user_two_factor_code_edit"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:imeOptions="actionDone"
+                            android:inputType="text"
+                            android:onTextChanged="@{presenter::onTwoFactorCodeChanged}"
                             android:textColor="@color/text_black_333"
                             android:textSize="17sp" />
 
@@ -258,7 +279,7 @@
                     android:visibility="gone"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/passContainer"
+                    app:layout_constraintTop_toBottomOf="@id/twoFactoContainer"
                     app:layout_constraintVertical_chainStyle="spread"
                     app:srcCompat="@drawable/ic_fingerprint"
                     app:tint="?colorPrimary"
@@ -297,7 +318,7 @@
                     style="@style/LoginButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:onClick="@{()-> presenter.onButtonClick()}"
+                    android:onClick="@{()-> presenter.onLoginButtonClick()}"
                     android:text="@string/log_in_button"
                     app:layout_constraintTop_toTopOf="parent"/>
 
@@ -310,8 +331,8 @@
                     android:layout_marginTop="6dp"
                     android:text="@string/manage_accounts"
                     android:onClick="@{() -> presenter.onManageAccountClicked()}"
-                    android:visibility="@{presenter.displayManageAccount() ? View.VISIBLE : View.GONE }"
-                    app:layout_constraintTop_toBottomOf="@id/login"
+                    android:visibility="@{presenter.hasAccounts ? View.VISIBLE : View.GONE }"
+                    app:layout_constraintTop_toBottomOf="@id/loginOpenId"
                     tools:text="Manage Accounts" />
 
                 <com.google.android.material.button.MaterialButton
@@ -321,6 +342,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:visibility="gone"
+                    tools:visibility="visible"
                     app:icon="@drawable/ic_dhis"
                     app:layout_constraintTop_toBottomOf="@id/login"
                     tools:text="Log in with google" />
@@ -368,9 +390,10 @@
             android:paddingEnd="40dp"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/logo">
+            app:layout_constraintTop_toBottomOf="@id/topbar">
 
             <TextView
+                android:id="@+id/progressMessage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/authenticating"

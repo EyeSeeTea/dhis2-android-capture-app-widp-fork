@@ -1,23 +1,23 @@
 package org.dhis2.usescases.teiDashboard.teiProgramList
 
-import android.graphics.Color
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.whenever
-import org.dhis2.commons.R
 import org.dhis2.commons.prefs.PreferenceProvider
 import org.dhis2.ui.MetadataIconData
+import org.dhis2.ui.toColor
 import org.dhis2.usescases.main.program.ProgramDownloadState
 import org.dhis2.usescases.main.program.ProgramViewModel
 import org.dhis2.utils.analytics.AnalyticsHelper
 import org.hisp.dhis.android.core.common.State
 import org.hisp.dhis.android.core.enrollment.EnrollmentAccess
 import org.hisp.dhis.android.core.enrollment.EnrollmentService
+import org.hisp.dhis.mobile.ui.designsystem.component.internal.ImageCardData
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.ArgumentMatchers.anyString
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 class TeiProgramListPresenterTest {
 
@@ -36,7 +36,7 @@ class TeiProgramListPresenterTest {
             "teiUid",
             preferenceProvider,
             analyticsHelper,
-            enrollmentService
+            enrollmentService,
         )
     }
 
@@ -57,11 +57,11 @@ class TeiProgramListPresenterTest {
         whenever(
             enrollmentService.blockingGetEnrollmentAccess(
                 anyString(),
-                anyString()
-            )
+                anyString(),
+            ),
         ) doReturn EnrollmentAccess.WRITE_ACCESS
         presenter.onEnrollClick(
-            mockedProgramViewModel()
+            mockedProgramViewModel(),
         )
         verify(analyticsHelper).setEvent(anyString(), anyString(), anyString())
         verify(preferenceProvider).removeValue(anyString())
@@ -74,8 +74,8 @@ class TeiProgramListPresenterTest {
         whenever(
             enrollmentService.blockingGetEnrollmentAccess(
                 anyString(),
-                anyString()
-            )
+                anyString(),
+            ),
         ) doReturn EnrollmentAccess.CLOSED_PROGRAM_DENIED
         presenter.onEnrollClick(testingProgram)
         verify(view).displayBreakGlassError(testingProgram.typeName)
@@ -87,8 +87,8 @@ class TeiProgramListPresenterTest {
         whenever(
             enrollmentService.blockingGetEnrollmentAccess(
                 anyString(),
-                anyString()
-            )
+                anyString(),
+            ),
         ) doReturn EnrollmentAccess.PROTECTED_PROGRAM_DENIED
         presenter.onEnrollClick(testingProgram)
         verify(view).displayBreakGlassError(testingProgram.typeName)
@@ -99,11 +99,11 @@ class TeiProgramListPresenterTest {
         whenever(
             enrollmentService.blockingGetEnrollmentAccess(
                 anyString(),
-                anyString()
-            )
+                anyString(),
+            ),
         ) doReturn EnrollmentAccess.NO_ACCESS
         presenter.onEnrollClick(
-            mockedProgramViewModel()
+            mockedProgramViewModel(),
         )
         verify(view).displayAccessError()
     }
@@ -113,11 +113,11 @@ class TeiProgramListPresenterTest {
         whenever(
             enrollmentService.blockingGetEnrollmentAccess(
                 anyString(),
-                anyString()
-            )
+                anyString(),
+            ),
         ) doReturn EnrollmentAccess.READ_ACCESS
         presenter.onEnrollClick(
-            mockedProgramViewModel()
+            mockedProgramViewModel(),
         )
         verify(view).displayAccessError()
     }
@@ -160,8 +160,8 @@ class TeiProgramListPresenterTest {
             "uid",
             "programName",
             MetadataIconData(
-                programColor = Color.parseColor("#84FFFF"),
-                iconResource = R.drawable.ic_home_positive
+                imageCardData = ImageCardData.IconCardData("", "", "ic_home_positive", "#84FFFF".toColor()),
+                color = "#84FFFF".toColor(),
             ),
             0,
             "type",
@@ -173,7 +173,8 @@ class TeiProgramListPresenterTest {
             state = State.SYNCED,
             hasOverdueEvent = false,
             filtersAreActive = false,
-            downloadState = ProgramDownloadState.NONE
+            downloadState = ProgramDownloadState.NONE,
+            stockConfig = null,
         )
     }
 
@@ -182,11 +183,10 @@ class TeiProgramListPresenterTest {
             "uid",
             "2020-01-01",
             null,
-            null,
             "programName",
             "orgUnit",
             false,
-            "programUid"
+            "programUid",
         )
     }
 }

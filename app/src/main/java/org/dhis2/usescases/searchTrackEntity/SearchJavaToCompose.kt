@@ -13,18 +13,20 @@ import org.dhis2.usescases.searchTrackEntity.ui.WrappedSearchButton
 @ExperimentalAnimationApi
 fun ComposeView?.setLandscapeOpenSearchButton(
     searchTEIViewModel: SearchTEIViewModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     this?.setContent {
         MdcTheme {
             val screenState by searchTEIViewModel.screenState.observeAsState()
+            val teTypeName by searchTEIViewModel.teTypeName.observeAsState()
+
             val visible = screenState?.let {
                 (it is SearchList) && it.searchFilters.isOpened
             } ?: false
             val isLandscape =
                 LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-            AnimatedVisibility(visible = isLandscape && visible) {
-                WrappedSearchButton(onClick = onClick)
+            AnimatedVisibility(visible = isLandscape && visible && !teTypeName.isNullOrBlank()) {
+                WrappedSearchButton(onClick = onClick, teTypeName = teTypeName!!)
             }
         }
     }

@@ -1,10 +1,12 @@
 package dhis2.org.analytics.charts.providers
 
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.regex.Pattern
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.apache.commons.text.WordUtils
+import org.dhis2.commons.viewmodel.DispatcherProvider
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.period.Period
 import org.hisp.dhis.android.core.period.PeriodType
@@ -13,39 +15,60 @@ import org.joda.time.Days
 import org.joda.time.Months
 import org.joda.time.Weeks
 import org.joda.time.Years
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.regex.Pattern
+import kotlin.coroutines.CoroutineContext
 
-class PeriodStepProviderImpl(val d2: D2) : PeriodStepProvider {
+class PeriodStepProviderImpl(
+    val d2: D2,
+    val dispatcherProvider: DispatcherProvider,
+) :
+    PeriodStepProvider, CoroutineScope {
+
+    private var job = Job()
+    override val coroutineContext: CoroutineContext
+        get() = job + dispatcherProvider.io()
+
     override fun periodStep(periodType: PeriodType?): Long {
         val currentDate = Date()
-        val initialPeriodDate = getPeriodForPeriodTypeAndDate(
-            periodType ?: PeriodType.Daily,
-            currentDate,
-            -1
-        ).startDate()?.time ?: 0L
-        val currentPeriodDate = getPeriodForPeriodTypeAndDate(
-            periodType ?: PeriodType.Daily,
-            currentDate,
-            0
-        ).startDate()?.time ?: 0L
-        return currentPeriodDate - initialPeriodDate
+        val result = async(dispatcherProvider.io()) {
+            val initialPeriodDate =
+                getPeriodForPeriodTypeAndDate(
+                    periodType ?: PeriodType.Daily,
+                    currentDate,
+                    -1,
+                ).startDate()?.time ?: 0L
+
+            val currentPeriodDate =
+                getPeriodForPeriodTypeAndDate(
+                    periodType ?: PeriodType.Daily,
+                    currentDate,
+                    0,
+                ).startDate()?.time ?: 0L
+
+            initialPeriodDate - currentPeriodDate
+        }
+
+        return runBlocking { result.await() }
     }
 
-    private fun getPeriodForPeriodTypeAndDate(
+    private suspend fun getPeriodForPeriodTypeAndDate(
         periodType: PeriodType,
         currentDate: Date,
-        offset: Int
+        offset: Int,
     ): Period {
-        return d2.periodModule().periodHelper().blockingGetPeriodForPeriodTypeAndDate(
-            periodType,
-            currentDate,
-            offset
-        )
+        return withContext(dispatcherProvider.io()) {
+            d2.periodModule().periodHelper().blockingGetPeriodForPeriodTypeAndDate(
+                periodType,
+                currentDate,
+                offset,
+            )
+        }
     }
 
-    override fun periodUIString(
-        locale: Locale,
-        period: Period
-    ): String {
+    override fun periodUIString(locale: Locale, period: Period): String {
         val formattedDate: String
         var periodString = DEFAULT_PERIOD
         when (period.periodType()) {
@@ -53,65 +76,69 @@ class PeriodStepProviderImpl(val d2: D2) : PeriodStepProvider {
             PeriodType.WeeklyWednesday,
             PeriodType.WeeklyThursday,
             PeriodType.WeeklySaturday,
-            PeriodType.WeeklySunday -> {
+            PeriodType.WeeklySunday,
+            -> {
                 periodString = DEFAULT_PERIOD_WEEK
                 formattedDate = periodString.format(
                     weekOfTheYear(period.periodType()!!, period.periodId()!!),
                     SimpleDateFormat(
                         DATE_FORMAT_EXPRESSION,
-                        locale
+                        locale,
                     ).format(period.startDate()!!),
                     SimpleDateFormat(
                         DATE_FORMAT_EXPRESSION,
-                        locale
-                    ).format(period.endDate()!!)
+                        locale,
+                    ).format(period.endDate()!!),
                 )
             }
+
             PeriodType.BiWeekly -> {
                 formattedDate = ""
             }
+
             PeriodType.Monthly ->
                 formattedDate =
                     SimpleDateFormat(
                         MONTHLY_FORMAT_EXPRESSION,
-                        locale
+                        locale,
                     ).format(period.startDate()!!)
+
             PeriodType.BiMonthly,
             PeriodType.Quarterly,
             PeriodType.SixMonthly,
             PeriodType.SixMonthlyApril,
             PeriodType.FinancialApril,
             PeriodType.FinancialJuly,
-            PeriodType.FinancialOct -> formattedDate = periodString.format(
+            PeriodType.FinancialOct,
+            -> formattedDate = periodString.format(
                 SimpleDateFormat(
                     MONTHLY_FORMAT_EXPRESSION,
-                    locale
+                    locale,
                 ).format(period.startDate()!!),
                 SimpleDateFormat(
                     MONTHLY_FORMAT_EXPRESSION,
-                    locale
-                ).format(period.endDate()!!)
+                    locale,
+                ).format(period.endDate()!!),
             )
+
             PeriodType.Yearly ->
                 formattedDate =
                     SimpleDateFormat(
                         YEARLY_FORMAT_EXPRESSION,
-                        locale
+                        locale,
                     ).format(period.startDate()!!)
+
             else ->
                 formattedDate =
                     SimpleDateFormat(
                         SIMPLE_DATE_FORMAT,
-                        locale
+                        locale,
                     ).format(period.startDate()!!)
         }
         return WordUtils.capitalize(formattedDate)
     }
 
-    private fun weekOfTheYear(
-        periodType: PeriodType,
-        periodId: String
-    ): Int {
+    private fun weekOfTheYear(periodType: PeriodType, periodId: String): Int {
         val pattern =
             Pattern.compile(periodType.pattern)
         val matcher = pattern.matcher(periodId)
@@ -126,47 +153,58 @@ class PeriodStepProviderImpl(val d2: D2) : PeriodStepProvider {
         return when (initialPeriod.periodType()) {
             PeriodType.Daily -> Days.daysBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).days
+
             PeriodType.Weekly,
             PeriodType.WeeklyWednesday,
             PeriodType.WeeklyThursday,
             PeriodType.WeeklySaturday,
-            PeriodType.WeeklySunday -> Weeks.weeksBetween(
+            PeriodType.WeeklySunday,
+            -> Weeks.weeksBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).weeks
+
             PeriodType.BiWeekly -> Weeks.weeksBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).weeks / 2
+
             PeriodType.Monthly -> Months.monthsBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).months
+
             PeriodType.BiMonthly -> Months.monthsBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).months / 2
+
             PeriodType.Quarterly -> Months.monthsBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).months / 3
+
             PeriodType.SixMonthly,
             PeriodType.SixMonthlyApril,
-            PeriodType.SixMonthlyNov ->
+            PeriodType.SixMonthlyNov,
+            ->
                 Months.monthsBetween(
                     DateTime(initialPeriod.startDate()),
-                    DateTime(currentPeriod.startDate())
+                    DateTime(currentPeriod.startDate()),
                 ).months / 6
+
             PeriodType.Yearly,
             PeriodType.FinancialApril,
             PeriodType.FinancialJuly,
             PeriodType.FinancialOct,
-            PeriodType.FinancialNov -> Years.yearsBetween(
+            PeriodType.FinancialNov,
+            -> Years.yearsBetween(
                 DateTime(initialPeriod.startDate()),
-                DateTime(currentPeriod.startDate())
+                DateTime(currentPeriod.startDate()),
             ).years
+
             null -> 0
         }
     }

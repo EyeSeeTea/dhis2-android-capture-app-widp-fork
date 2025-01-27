@@ -31,6 +31,6 @@ package org.dhis2.data.service.workManager
 enum class WorkerType {
     METADATA,
     DATA,
-    RESERVED,
-    GRANULAR
+    GRANULAR,
+    NEW_VERSION,
 }

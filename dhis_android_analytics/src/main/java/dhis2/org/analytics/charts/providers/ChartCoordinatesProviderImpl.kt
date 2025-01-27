@@ -1,11 +1,8 @@
 package dhis2.org.analytics.charts.providers
 
+import dhis2.org.analytics.charts.data.GraphFieldValue
 import dhis2.org.analytics.charts.data.GraphPoint
 import dhis2.org.analytics.charts.data.LegendValue
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.GregorianCalendar
-import java.util.Locale
 import org.dhis2.commons.resources.ResourceManager
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.analytics.AnalyticsLegendStrategy
@@ -14,11 +11,15 @@ import org.hisp.dhis.android.core.analytics.aggregated.MetadataItem
 import org.hisp.dhis.android.core.common.RelativePeriod
 import org.hisp.dhis.android.core.legendset.Legend
 import org.hisp.dhis.android.core.period.Period
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.GregorianCalendar
+import java.util.Locale
 
 class ChartCoordinatesProviderImpl(
     val d2: D2,
     val periodStepProvider: PeriodStepProvider,
-    val resourceManager: ResourceManager
+    val resourceManager: ResourceManager,
 ) : ChartCoordinatesProvider {
 
     override fun dataElementCoordinates(
@@ -26,7 +27,8 @@ class ChartCoordinatesProviderImpl(
         teiUid: String,
         dataElementUid: String,
         selectedRelativePeriod: List<RelativePeriod>?,
-        selectedOrgUnits: List<String>?
+        selectedOrgUnits: List<String>?,
+        isDefault: Boolean,
     ): List<GraphPoint> {
         var initialPeriod: Period? = null
         return d2.analyticsModule().eventLineList()
@@ -56,12 +58,16 @@ class ChartCoordinatesProviderImpl(
                 lineListResponseValue.value?.let { value ->
                     GraphPoint(
                         eventDate = formattedDate(lineListResponse.date),
-                        position = periodStepProvider.getPeriodDiff(
-                            initialPeriod!!,
-                            lineListResponse.period
-                        ).toFloat(),
-                        fieldValue = value.toFloat(),
-                        legendValue = createLegendValue(legend)
+                        position = if (isDefault) {
+                            null
+                        } else {
+                            periodStepProvider.getPeriodDiff(
+                                initialPeriod!!,
+                                lineListResponse.period,
+                            ).toFloat()
+                        },
+                        fieldValue = GraphFieldValue.Numeric(value.toFloatOrNull() ?: 0f),
+                        legendValue = createLegendValue(legend),
                     )
                 }
             }
@@ -72,7 +78,8 @@ class ChartCoordinatesProviderImpl(
         teiUid: String,
         indicatorUid: String,
         selectedRelativePeriod: List<RelativePeriod>?,
-        selectedOrgUnits: List<String>?
+        selectedOrgUnits: List<String>?,
+        isDefault: Boolean,
     ): List<GraphPoint> {
         var initialPeriod: Period? = null
         return d2.analyticsModule()
@@ -110,12 +117,16 @@ class ChartCoordinatesProviderImpl(
 
                     GraphPoint(
                         eventDate = formattedDate(lineListResponse.date),
-                        position = periodStepProvider.getPeriodDiff(
-                            initialPeriod!!,
-                            lineListResponse.period
-                        ).toFloat(),
-                        fieldValue = value.toFloat(),
-                        legendValue = createLegendValue(legend)
+                        position = if (isDefault) {
+                            null
+                        } else {
+                            periodStepProvider.getPeriodDiff(
+                                initialPeriod!!,
+                                lineListResponse.period,
+                            ).toFloat()
+                        },
+                        fieldValue = GraphFieldValue.Numeric(value.toFloat()),
+                        legendValue = createLegendValue(legend),
                     )
                 }
             }
@@ -129,7 +140,7 @@ class ChartCoordinatesProviderImpl(
         ageOrHeightCountainerUid: String,
         ageOrHeightIsDataElement: Boolean,
         selectedRelativePeriod: List<RelativePeriod>?,
-        selectedOrgUnits: List<String>?
+        selectedOrgUnits: List<String>?,
     ): List<GraphPoint> {
         var eventLineListRepository = d2.analyticsModule().eventLineList()
             .byProgramStage().eq(stageUid)
@@ -170,7 +181,7 @@ class ChartCoordinatesProviderImpl(
                     GraphPoint(
                         eventDate = formattedDate(lineListResponse.date),
                         position = xAxisValue.toFloat(),
-                        fieldValue = zScoreValue.toFloat()
+                        fieldValue = GraphFieldValue.Numeric(zScoreValue.toFloat()),
                     )
                 }
             }
@@ -181,7 +192,7 @@ class ChartCoordinatesProviderImpl(
         teiUid: String,
         dataElementUid: String,
         selectedRelativePeriod: List<RelativePeriod>?,
-        selectedOrgUnits: List<String>?
+        selectedOrgUnits: List<String>?,
     ): List<GraphPoint> {
         val eventList = d2.analyticsModule().eventLineList()
             .byProgramStage().eq(stageUid)
@@ -203,8 +214,8 @@ class ChartCoordinatesProviderImpl(
         return eventList.groupBy { it.values.first().value }.mapNotNull {
             GraphPoint(
                 eventDate = formattedDate(it.value.first().date),
-                fieldValue = it.value.size.toFloat(),
-                legend = it.key
+                fieldValue = GraphFieldValue.Numeric(it.value.size.toFloat()),
+                legend = it.key,
             )
         }
     }
@@ -212,10 +223,10 @@ class ChartCoordinatesProviderImpl(
     override fun visualizationCoordinates(
         gridResponseValueList: List<GridResponseValue>,
         metadata: Map<String, MetadataItem>,
-        categories: List<String>
+        categories: List<String>,
     ): List<GraphPoint> {
         return gridResponseValueList.filter { it.value != null }
-            .mapIndexed { index, gridResponseValue ->
+            .mapIndexed { _, gridResponseValue ->
 
                 val periodId = gridResponseValue.rows.joinToString(separator = " - ") {
                     metadata[it]?.displayName.toString()
@@ -225,10 +236,7 @@ class ChartCoordinatesProviderImpl(
                     0f
                 } else {
                     periodId.let {
-                        when (metadata[periodId]) {
-                            is MetadataItem.RelativePeriodItem -> categories.indexOf(periodId)
-                            else -> categories.indexOf(periodId)
-                        }
+                        categories.indexOf(periodId)
                     }
                 }
 
@@ -236,8 +244,9 @@ class ChartCoordinatesProviderImpl(
                     when (val metadataItem = metadata[it]) {
                         is MetadataItem.PeriodItem -> periodStepProvider.periodUIString(
                             Locale.getDefault(),
-                            metadataItem.item
+                            metadataItem.item,
                         )
+
                         else -> metadata[it]?.displayName
                     }
                 }
@@ -248,9 +257,9 @@ class ChartCoordinatesProviderImpl(
                 GraphPoint(
                     eventDate = GregorianCalendar(2021, 0, 1).time,
                     position = position.toFloat(),
-                    fieldValue = gridResponseValue.value!!.toFloat(),
+                    fieldValue = GraphFieldValue.Numeric(gridResponseValue.value!!.toFloat()),
                     legend = columnLegend,
-                    legendValue = createLegendValue(legend?.item)
+                    legendValue = createLegendValue(legend?.item),
                 )
             }
     }
@@ -275,9 +284,9 @@ class ChartCoordinatesProviderImpl(
         return legend?.let {
             LegendValue(
                 resourceManager.getColorFrom(
-                    it.color()
+                    it.color(),
                 ),
-                it.displayName()
+                it.displayName(),
             )
         }
     }

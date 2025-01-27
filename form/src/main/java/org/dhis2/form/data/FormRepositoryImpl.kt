@@ -1,7 +1,6 @@
 package org.dhis2.form.data
 
-import org.dhis2.commons.data.FieldWithIssue
-import org.dhis2.commons.data.IssueType
+import org.dhis2.form.data.EnrollmentRepository.Companion.ENROLLMENT_DATE_UID
 import org.dhis2.form.model.ActionType
 import org.dhis2.form.model.FieldUiModel
 import org.dhis2.form.model.RowAction
@@ -10,6 +9,9 @@ import org.dhis2.form.model.StoreResult
 import org.dhis2.form.ui.provider.DisplayNameProvider
 import org.dhis2.form.ui.provider.LegendValueProvider
 import org.dhis2.form.ui.validation.FieldErrorMessageProvider
+import org.dhis2.mobileProgramRules.RuleEngineHelper
+import org.dhis2.ui.dialogs.bottomsheet.FieldWithIssue
+import org.dhis2.ui.dialogs.bottomsheet.IssueType
 import org.hisp.dhis.android.core.common.ValueType
 import org.hisp.dhis.android.core.common.ValueType.LONG_TEXT
 import org.hisp.dhis.rules.models.RuleEffect
@@ -17,13 +19,14 @@ import org.hisp.dhis.rules.models.RuleEffect
 private const val loopThreshold = 5
 
 class FormRepositoryImpl(
-    private val formValueStore: FormValueStore?,
+    private val formValueStore: FormValueStore,
     private val fieldErrorMessageProvider: FieldErrorMessageProvider,
     private val displayNameProvider: DisplayNameProvider,
-    private val dataEntryRepository: DataEntryRepository?,
-    private val ruleEngineRepository: RuleEngineRepository?,
-    private val rulesUtilsProvider: RulesUtilsProvider?,
-    private val legendValueProvider: LegendValueProvider?
+    private val dataEntryRepository: DataEntryRepository,
+    private val ruleEngineRepository: RuleEngineHelper?,
+    private val rulesUtilsProvider: RulesUtilsProvider,
+    private val legendValueProvider: LegendValueProvider,
+    private val useCompose: Boolean,
 ) : FormRepository {
 
     private var completionPercentage: Float = 0f
@@ -38,12 +41,26 @@ class FormRepositoryImpl(
     private var calculationLoop: Int = 0
     private var backupList: List<FieldUiModel> = emptyList()
 
-    override fun fetchFormItems(): List<FieldUiModel> {
-        openedSectionUid =
-            dataEntryRepository?.sectionUids()?.blockingFirst()?.firstOrNull()
-        itemList = dataEntryRepository?.list()?.blockingFirst() ?: emptyList()
+    private val disableCollapsableSections: Boolean? =
+        dataEntryRepository.disableCollapsableSections()
+
+    override fun fetchFormItems(shouldOpenErrorLocation: Boolean): List<FieldUiModel> {
+        itemList = dataEntryRepository.list().blockingFirst() ?: emptyList()
+        openedSectionUid = getInitialOpenedSection(shouldOpenErrorLocation)
         backupList = itemList
         return composeList()
+    }
+
+    private fun getInitialOpenedSection(shouldOpenErrorLocation: Boolean) = when {
+        disableCollapsableSections == true ->
+            null
+
+        shouldOpenErrorLocation ->
+            itemList.firstOrNull { it.error != null || it.warning != null }?.programStageSection
+                ?: dataEntryRepository.firstSectionToOpen()
+
+        else ->
+            dataEntryRepository.firstSectionToOpen()
     }
 
     override fun composeList(skipProgramRules: Boolean): List<FieldUiModel> {
@@ -90,16 +107,15 @@ class FormRepositoryImpl(
     }
 
     private fun ruleEffects() = try {
-        ruleEngineRepository?.calculate() ?: emptyList()
+        ruleEngineRepository?.evaluate() ?: emptyList()
     } catch (e: Exception) {
         emptyList()
     }
 
     private fun calculateCompletionPercentage(list: List<FieldUiModel>) {
         val unsupportedValueTypes = listOf(
-            ValueType.FILE_RESOURCE,
             ValueType.TRACKER_ASSOCIATE,
-            ValueType.USERNAME
+            ValueType.USERNAME,
         )
         val fields = list.filter {
             it.valueType != null &&
@@ -126,7 +142,7 @@ class FormRepositoryImpl(
                 fieldUid = warningField.fieldUid,
                 fieldName = itemList.find { it.uid == warningField.fieldUid }?.label ?: "",
                 IssueType.WARNING,
-                warningField.errorMessage
+                warningField.errorMessage,
             )
         } ?: emptyList()
         val result = when {
@@ -137,9 +153,10 @@ class FormRepositoryImpl(
                     warningFields = itemsWithWarning,
                     canComplete = ruleEffectsResult?.canComplete ?: true,
                     onCompleteMessage = ruleEffectsResult?.messageOnComplete,
-                    allowDiscard = allowDiscard
+                    allowDiscard = allowDiscard,
                 )
             }
+
             mandatoryItemsWithoutValue.isNotEmpty() -> {
                 MissingMandatoryResult(
                     mandatoryFields = mandatoryItemsWithoutValue,
@@ -147,21 +164,23 @@ class FormRepositoryImpl(
                     warningFields = itemsWithWarning,
                     canComplete = ruleEffectsResult?.canComplete ?: true,
                     onCompleteMessage = ruleEffectsResult?.messageOnComplete,
-                    allowDiscard = allowDiscard
+                    allowDiscard = allowDiscard,
                 )
             }
+
             itemsWithWarning.isNotEmpty() -> {
                 FieldsWithWarningResult(
                     fieldUidWarningList = itemsWithWarning,
                     canComplete = ruleEffectsResult?.canComplete ?: true,
-                    onCompleteMessage = ruleEffectsResult?.messageOnComplete
+                    onCompleteMessage = ruleEffectsResult?.messageOnComplete,
                 )
             }
+
             backupOfChangedItems().isNotEmpty() && allowDiscard -> NotSavedResult
             else -> {
                 SuccessfulResult(
                     canComplete = ruleEffectsResult?.canComplete ?: true,
-                    onCompleteMessage = ruleEffectsResult?.messageOnComplete
+                    onCompleteMessage = ruleEffectsResult?.messageOnComplete,
                 )
             }
         }
@@ -188,7 +207,7 @@ class FormRepositoryImpl(
                 issueType = IssueType.ERROR,
                 message = errorItem.error?.let {
                     fieldErrorMessageProvider.getFriendlyErrorMessage(it)
-                } ?: ""
+                } ?: "",
             )
         }
     }.plus(
@@ -197,13 +216,13 @@ class FormRepositoryImpl(
                 fieldUid = errorField.fieldUid,
                 fieldName = itemList.find { it.uid == errorField.fieldUid }?.label ?: "",
                 issueType = IssueType.ERROR,
-                message = errorField.errorMessage
+                message = errorField.errorMessage,
             )
-        } ?: emptyList()
+        } ?: emptyList(),
     )
 
     private fun List<FieldUiModel>.applyRuleEffects(
-        skipProgramRules: Boolean = false
+        skipProgramRules: Boolean = false,
     ): List<FieldUiModel> {
         ruleEffects = if (skipProgramRules) {
             ruleEffects
@@ -211,11 +230,11 @@ class FormRepositoryImpl(
             ruleEffects()
         }
         val fieldMap = this.associateBy { it.uid }.toMutableMap()
-        ruleEffectsResult = rulesUtilsProvider?.applyRuleEffects(
-            applyForEvent = dataEntryRepository?.isEvent == true,
+        ruleEffectsResult = rulesUtilsProvider.applyRuleEffects(
+            applyForEvent = dataEntryRepository.isEvent(),
             fieldViewModels = fieldMap,
             ruleEffects,
-            valueStore = formValueStore
+            valueStore = formValueStore,
         )
         ruleEffectsResult?.fieldsToUpdate?.takeIf { it.isNotEmpty() }
             ?.forEach { fieldWithNewValue ->
@@ -223,8 +242,8 @@ class FormRepositoryImpl(
                     updateValueOnList(field.uid, fieldWithNewValue.newValue, field.valueType)
                 }
             }
-        return if (ruleEffectsResult?.fieldsToUpdate?.isNotEmpty() == true ||
-            calculationLoop == loopThreshold
+        return if (ruleEffectsResult?.fieldsToUpdate?.isNotEmpty() == true &&
+            calculationLoop < loopThreshold
         ) {
             calculationLoop += 1
             ArrayList(fieldMap.values).applyRuleEffects(skipProgramRules)
@@ -252,18 +271,25 @@ class FormRepositoryImpl(
             }
         }
             .filter { field ->
-                field.isSectionWithFields() ||
-                    field.programStageSection == openedSectionUid
+                when (field) {
+                    is SectionUiModelImpl ->
+                        field.isSectionWithFields()
+
+                    else ->
+                        useCompose || disableCollapsableSections == true ||
+                            field.programStageSection == openedSectionUid
+                }
             }
     }
 
     private fun updateSection(
         sectionFieldUiModel: FieldUiModel,
-        fields: List<FieldUiModel>
+        fields: List<FieldUiModel>,
     ): FieldUiModel {
         var total = 0
         var values = 0
-        val isOpen = sectionFieldUiModel.uid == openedSectionUid
+        val isOpen = (sectionFieldUiModel.uid == openedSectionUid)
+            .takeIf { disableCollapsableSections != true }
         fields.filter {
             it.programStageSection.equals(sectionFieldUiModel.uid) && it.valueType != null
         }.forEach {
@@ -274,9 +300,9 @@ class FormRepositoryImpl(
         }
 
         val warningCount = ruleEffectsResult?.warningMap()?.filter { warning ->
-            fields.firstOrNull { field ->
+            fields.any { field ->
                 field.uid == warning.key && field.programStageSection == sectionFieldUiModel.uid
-            } != null
+            }
         }?.size ?: 0
 
         val mandatoryCount = mandatoryItemsWithoutValue.takeIf {
@@ -286,38 +312,54 @@ class FormRepositoryImpl(
         }?.size ?: 0
 
         val errorCount = ruleEffectsResult?.errorMap()?.filter { error ->
-            fields.firstOrNull { field ->
+            fields.any { field ->
                 field.uid == error.key && field.programStageSection == sectionFieldUiModel.uid
-            } != null
+            }
         }?.size ?: 0
 
-        return dataEntryRepository?.updateSection(
+        val errorFields = fields.count {
+            it.programStageSection == sectionFieldUiModel.uid && it.error != null
+        }
+
+        return dataEntryRepository.updateSection(
             sectionFieldUiModel,
             isOpen,
             total,
             values,
-            errorCount + mandatoryCount,
-            warningCount
-        ) ?: sectionFieldUiModel
+            errorCount + mandatoryCount + errorFields,
+            warningCount,
+        )
     }
 
     private fun updateField(fieldUiModel: FieldUiModel): FieldUiModel {
-        val needsMandatoryWarning = fieldUiModel.mandatory &&
-            fieldUiModel.value.isNullOrEmpty()
-
+        val needsMandatoryWarning = hasMandatoryWarnings(fieldUiModel)
         if (needsMandatoryWarning) {
             mandatoryItemsWithoutValue[fieldUiModel.label] = fieldUiModel.programStageSection ?: ""
         }
 
-        return dataEntryRepository?.updateField(
+        return dataEntryRepository.updateField(
             fieldUiModel,
             fieldErrorMessageProvider.mandatoryWarning().takeIf {
                 needsMandatoryWarning && runDataIntegrity
             },
             ruleEffectsResult?.optionsToHide(fieldUiModel.uid) ?: emptyList(),
             ruleEffectsResult?.optionGroupsToHide(fieldUiModel.uid) ?: emptyList(),
-            ruleEffectsResult?.optionGroupsToShow(fieldUiModel.uid) ?: emptyList()
-        ) ?: fieldUiModel
+            ruleEffectsResult?.optionGroupsToShow(fieldUiModel.uid) ?: emptyList(),
+        )
+    }
+
+    private fun hasMandatoryWarnings(fieldUiModel: FieldUiModel): Boolean {
+        return if (fieldUiModel.uid.contains(EventRepository.EVENT_CATEGORY_COMBO_UID)) {
+            fieldUiModel.mandatory &&
+                (
+                    fieldUiModel.value.isNullOrEmpty() ||
+                        fieldUiModel.value?.split(",")?.size !=
+                        fieldUiModel.eventCategories?.size
+                    )
+        } else {
+            fieldUiModel.mandatory &&
+                fieldUiModel.value.isNullOrEmpty()
+        }
     }
 
     private fun getNextItem(currentItemUid: String): String? {
@@ -332,7 +374,10 @@ class FormRepositoryImpl(
     }
 
     override fun updateValueOnList(uid: String, value: String?, valueType: ValueType?) {
+        val updatedEnrollmentDataList = dataEntryRepository.getSpecificDataEntryItems(uid)
+        if (updatedEnrollmentDataList.isNotEmpty()) updateEnrollmentDate(updatedEnrollmentDataList)
         itemList.let { list ->
+
             list.find { item ->
                 item.uid == uid
             }?.let { item ->
@@ -343,16 +388,33 @@ class FormRepositoryImpl(
                             displayNameProvider.provideDisplayName(
                                 valueType,
                                 value,
-                                item.optionSet
-                            )
+                                item.optionSet,
+                                item.periodSelector?.type,
+                            ),
                         )
                         .setLegend(
-                            legendValueProvider?.provideLegendValue(
+                            legendValueProvider.provideLegendValue(
                                 item.uid,
-                                value
-                            )
-                        )
+                                value,
+                            ),
+                        ),
                 )
+            }
+        }
+    }
+
+    private fun updateEnrollmentDate(fieldUiModelList: List<FieldUiModel>) {
+        for (element in fieldUiModelList) {
+            itemList.let { list ->
+                list.find { item ->
+                    item.uid == ENROLLMENT_DATE_UID
+                }?.let { item ->
+                    itemList = list.updated(
+                        list.indexOf(item),
+                        item.setSelectableDates(element.selectableDates),
+
+                    )
+                }
             }
         }
     }
@@ -370,18 +432,31 @@ class FormRepositoryImpl(
             }?.let { item ->
                 itemList = list.updated(
                     list.indexOf(item),
-                    item.setIsLoadingData(requestInProcess)
+                    item.setIsLoadingData(requestInProcess),
+                )
+            }
+        }
+    }
+
+    override fun setFieldAddingImage(uid: String, requestInProcess: Boolean) {
+        itemList.let { list ->
+            list.find { item ->
+                item.uid == uid
+            }?.let { item ->
+                itemList = list.updated(
+                    list.indexOf(item),
+                    item.setIsLoadingData(requestInProcess),
                 )
             }
         }
     }
 
     private fun List<FieldUiModel>.mergeListWithErrorFields(
-        fieldsWithError: MutableList<RowAction>
+        fieldsWithError: List<RowAction>,
     ): List<FieldUiModel> {
         mandatoryItemsWithoutValue.clear()
         val mergedList = this.map { item ->
-            if (item.mandatory && item.value.isNullOrEmpty()) {
+            if (hasMandatoryWarnings(item)) {
                 mandatoryItemsWithoutValue[item.label] = item.programStageSection ?: ""
             }
             fieldsWithError.find { it.id == item.uid }?.let { action ->
@@ -392,8 +467,10 @@ class FormRepositoryImpl(
                     .setDisplayName(
                         displayNameProvider.provideDisplayName(
                             action.valueType,
-                            action.value
-                        )
+                            action.value,
+                            item.optionSet,
+                            item.periodSelector?.type,
+                        ),
                     )
             } ?: item
         }
@@ -402,7 +479,7 @@ class FormRepositoryImpl(
 
     override fun updateErrorList(action: RowAction) {
         if (action.error != null) {
-            if (itemsWithError.find { it.id == action.id } == null) {
+            if (itemsWithError.none { it.id == action.id }) {
                 itemsWithError.add(action)
             }
         } else {
@@ -412,8 +489,16 @@ class FormRepositoryImpl(
         }
     }
 
-    override fun save(id: String, value: String?, extraData: String?): StoreResult? {
-        return formValueStore?.save(id, value, extraData)
+    override fun save(id: String, value: String?, extraData: String?): StoreResult {
+        return formValueStore.save(id, value, extraData)
+    }
+
+    override fun storeFile(id: String, filePath: String?): StoreResult {
+        return formValueStore.storeFile(id, filePath)
+    }
+
+    override fun areSectionCollapsable(): Boolean {
+        return disableCollapsableSections ?: false
     }
 
     override fun setFocusedItem(action: RowAction) {
@@ -433,7 +518,13 @@ class FormRepositoryImpl(
     }
 
     override fun updateSectionOpened(action: RowAction) {
-        openedSectionUid = action.id
+        if (disableCollapsableSections != true) {
+            openedSectionUid = action.id
+        }
+    }
+
+    override fun getDateFormatConfiguration(): String {
+        return dataEntryRepository.dateFormatConfiguration() ?: "ddMMyyyy"
     }
 
     fun <E> Iterable<E>.updated(index: Int, elem: E): List<E> =

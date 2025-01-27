@@ -2,8 +2,6 @@ package org.dhis2.usescases.eventsWithoutRegistration.eventDetails.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import java.util.Calendar
-import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +10,7 @@ import kotlinx.coroutines.launch
 import org.dhis2.commons.extensions.truncate
 import org.dhis2.commons.locationprovider.LocationProvider
 import org.dhis2.form.data.GeometryController
+import org.dhis2.usescases.eventsWithoutRegistration.EventIdlingResourceSingleton
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain.ConfigureEventCatCombo
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain.ConfigureEventCoordinates
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain.ConfigureEventDetails
@@ -20,19 +19,26 @@ import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain.Configu
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain.ConfigureOrgUnit
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.domain.CreateOrUpdateEventDetails
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventCatCombo
-import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventCategory
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventCoordinates
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventDate
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventDetails
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventOrgUnit
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventTemp
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.models.EventTempStatus
+import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.providers.DEFAULT_MAX_DATE
+import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.providers.DEFAULT_MIN_DATE
 import org.dhis2.usescases.eventsWithoutRegistration.eventDetails.providers.EventDetailResourcesProvider
-import org.dhis2.utils.category.CategoryDialog.Companion.DEFAULT_COUNT_LIMIT
 import org.hisp.dhis.android.core.arch.helpers.GeometryHelper
 import org.hisp.dhis.android.core.common.FeatureType
 import org.hisp.dhis.android.core.common.Geometry
 import org.hisp.dhis.android.core.period.PeriodType
+import org.hisp.dhis.mobile.ui.designsystem.component.SelectableDates
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.GregorianCalendar
+import java.util.Locale
+import java.util.TimeZone
 
 class EventDetailsViewModel(
     private val configureEventDetails: ConfigureEventDetails,
@@ -46,15 +52,12 @@ class EventDetailsViewModel(
     private val geometryController: GeometryController,
     private val locationProvider: LocationProvider,
     private val createOrUpdateEventDetails: CreateOrUpdateEventDetails,
-    private val resourcesProvider: EventDetailResourcesProvider
+    private val resourcesProvider: EventDetailResourcesProvider,
 ) : ViewModel() {
 
-    var showCalendar: (() -> Unit)? = null
     var showPeriods: (() -> Unit)? = null
     var showOrgUnits: (() -> Unit)? = null
     var showNoOrgUnits: (() -> Unit)? = null
-    var showCategoryDialog: ((category: EventCategory) -> Unit)? = null
-    var showCategoryPopUp: ((category: EventCategory) -> Unit)? = null
     var requestLocationPermissions: (() -> Unit)? = null
     var showEnableLocationMessage: (() -> Unit)? = null
     var requestLocationByMap: ((featureType: String, initCoordinate: String?) -> Unit)? = null
@@ -114,8 +117,8 @@ class EventDetailsViewModel(
                             },
                             mapRequest = { _, featureType, initCoordinate ->
                                 requestLocationByMap?.invoke(featureType, initCoordinate)
-                            }
-                        )
+                            },
+                        ),
                     )
                     _eventCoordinates.value = eventCoordinates
                 }
@@ -130,7 +133,7 @@ class EventDetailsViewModel(
                 catOptionComboUid = eventCatCombo.value.uid,
                 isCatComboCompleted = eventCatCombo.value.isCompleted,
                 coordinates = eventCoordinates.value.model?.value,
-                tempCreate = eventTemp.value.status?.name
+                tempCreate = eventTemp.value.status?.name,
             )
                 .collect {
                     _eventDetails.value = it
@@ -139,7 +142,7 @@ class EventDetailsViewModel(
     }
 
     private fun setUpEventDetails() {
-        EventDetailIdlingResourceSingleton.increment()
+        EventIdlingResourceSingleton.increment()
         viewModelScope.launch {
             configureEventDetails(
                 selectedDate = eventDate.value.currentDate,
@@ -147,18 +150,18 @@ class EventDetailsViewModel(
                 catOptionComboUid = eventCatCombo.value.uid,
                 isCatComboCompleted = eventCatCombo.value.isCompleted,
                 coordinates = eventCoordinates.value.model?.value,
-                tempCreate = eventTemp.value.status?.name
+                tempCreate = eventTemp.value.status?.name,
             )
                 .flowOn(Dispatchers.IO)
                 .collect {
                     _eventDetails.value = it
-                    EventDetailIdlingResourceSingleton.decrement()
+                    EventIdlingResourceSingleton.decrement()
                 }
         }
     }
 
     fun setUpEventReportDate(selectedDate: Date? = null) {
-        EventDetailIdlingResourceSingleton.increment()
+        EventIdlingResourceSingleton.increment()
         viewModelScope.launch {
             configureEventReportDate(selectedDate)
                 .flowOn(Dispatchers.IO)
@@ -166,15 +169,17 @@ class EventDetailsViewModel(
                     _eventDate.value = it
                     setUpEventDetails()
                     setUpOrgUnit(selectedDate = it.currentDate)
-                    EventDetailIdlingResourceSingleton.decrement()
+                    EventIdlingResourceSingleton.decrement()
                 }
         }
     }
 
-    fun setUpOrgUnit(
-        selectedDate: Date? = null,
-        selectedOrgUnit: String? = null
-    ) {
+    fun onClearEventReportDate() {
+        _eventDate.value = eventDate.value.copy(currentDate = null, dateValue = null)
+        setUpEventDetails()
+    }
+
+    fun setUpOrgUnit(selectedDate: Date? = null, selectedOrgUnit: String? = null) {
         viewModelScope.launch {
             configureOrgUnit(selectedDate, selectedOrgUnit)
                 .flowOn(Dispatchers.IO)
@@ -185,21 +190,31 @@ class EventDetailsViewModel(
         }
     }
 
+    fun onClearOrgUnit() {
+        _eventOrgUnit.value = eventOrgUnit.value.copy(selectedOrgUnit = null)
+        setUpEventDetails()
+    }
+
     fun setUpCategoryCombo(categoryOption: Pair<String, String?>? = null) {
-        EventDetailIdlingResourceSingleton.increment()
+        EventIdlingResourceSingleton.increment()
         viewModelScope.launch {
             configureEventCatCombo(categoryOption)
                 .flowOn(Dispatchers.IO)
                 .collect {
                     _eventCatCombo.value = it
                     setUpEventDetails()
-                    EventDetailIdlingResourceSingleton.decrement()
+                    EventIdlingResourceSingleton.decrement()
                 }
         }
     }
 
+    fun onClearCatCombo() {
+        _eventCatCombo.value = eventCatCombo.value.copy(isCompleted = false)
+        setUpEventDetails()
+    }
+
     private fun setUpCoordinates(value: String? = "") {
-        EventDetailIdlingResourceSingleton.increment()
+        EventIdlingResourceSingleton.increment()
         viewModelScope.launch {
             configureEventCoordinates(value)
                 .flowOn(Dispatchers.IO)
@@ -214,56 +229,73 @@ class EventDetailsViewModel(
                             },
                             mapRequest = { _, featureType, initCoordinate ->
                                 requestLocationByMap?.invoke(featureType, initCoordinate)
-                            }
-                        )
+                            },
+                        ),
                     )
                     _eventCoordinates.value = eventCoordinates
                     setUpEventDetails()
-                    EventDetailIdlingResourceSingleton.decrement()
+                    EventIdlingResourceSingleton.decrement()
                 }
         }
     }
 
     fun setUpEventTemp(status: EventTempStatus? = null, isChecked: Boolean = true) {
-        EventDetailIdlingResourceSingleton.increment()
+        EventIdlingResourceSingleton.increment()
         if (isChecked) {
             configureEventTemp(status).apply {
                 _eventTemp.value = this
                 setUpEventDetails()
             }
         }
-        EventDetailIdlingResourceSingleton.decrement()
+        EventIdlingResourceSingleton.decrement()
     }
 
-    fun onDateClick() {
+    fun getSelectableDates(eventDate: EventDate): SelectableDates {
+        return if (eventDate.allowFutureDates) {
+            SelectableDates(DEFAULT_MIN_DATE, DEFAULT_MAX_DATE)
+        } else {
+            val currentDate =
+                SimpleDateFormat("ddMMyyyy", Locale.US).format(Date(System.currentTimeMillis()))
+            SelectableDates(DEFAULT_MIN_DATE, currentDate)
+        }
+    }
+
+    fun showPeriodDialog() {
         periodType?.let {
             showPeriods?.invoke()
-        } ?: showCalendar?.invoke()
+        }
     }
 
     fun onDateSet(year: Int, month: Int, day: Int) {
         val calendar = Calendar.getInstance()
         calendar[year, month, day, 0, 0] = 0
         calendar[Calendar.MILLISECOND] = 0
+
+        val currentTimeZone: TimeZone = calendar.getTimeZone()
+        val currentDt: Calendar = GregorianCalendar(currentTimeZone, Locale.getDefault())
+
+        var gmtOffset: Int = currentTimeZone.getOffset(
+            currentDt[Calendar.ERA],
+            currentDt[Calendar.YEAR],
+            currentDt[Calendar.MONTH],
+            currentDt[Calendar.DAY_OF_MONTH],
+            currentDt[Calendar.DAY_OF_WEEK],
+            currentDt[Calendar.MILLISECOND],
+        )
+        gmtOffset /= (60 * 60 * 1000)
+        calendar.add(Calendar.HOUR_OF_DAY, +gmtOffset)
         val selectedDate = calendar.time
+
         setUpEventReportDate(selectedDate)
     }
 
     fun onOrgUnitClick() {
         if (!eventOrgUnit.value.fixed) {
-            if (eventOrgUnit.value.orgUnits.isNullOrEmpty()) {
+            if (eventOrgUnit.value.orgUnits.isEmpty()) {
                 showNoOrgUnits?.invoke()
             } else {
                 showOrgUnits?.invoke()
             }
-        }
-    }
-
-    fun onCatComboClick(category: EventCategory) {
-        if (category.optionsSize > DEFAULT_COUNT_LIMIT) {
-            showCategoryDialog?.invoke(category)
-        } else {
-            showCategoryPopUp?.invoke(category)
         }
     }
 
@@ -281,14 +313,14 @@ class EventDetailsViewModel(
             },
             onLocationDisabled = {
                 showEnableLocationMessage?.invoke()
-            }
+            },
         )
     }
 
     fun onLocationByMapSelected(featureType: FeatureType, coordinates: String?) {
         val geometry: Geometry? = geometryController.generateLocationFromCoordinates(
             featureType,
-            coordinates
+            coordinates,
         )
         geometry?.let { setUpCoordinates(it.coordinates()) }
     }
@@ -308,7 +340,7 @@ class EventDetailsViewModel(
                         selectedDate = date,
                         selectedOrgUnit = selectedOrgUnit,
                         catOptionComboUid = catOptionComboUid,
-                        coordinates = coordinates
+                        coordinates = coordinates,
                     ).flowOn(Dispatchers.IO)
                         .collect { result ->
                             result.onFailure {
@@ -323,13 +355,17 @@ class EventDetailsViewModel(
         }
     }
 
+    fun getPeriodType(): PeriodType? {
+        return periodType
+    }
+
     fun onReopenClick() {
         configureEventDetails.reopenEvent().mockSafeFold(
             onSuccess = {
                 loadEventDetails()
                 onReopenSuccess?.invoke(resourcesProvider.provideReOpened())
             },
-            onFailure = { error -> error.message?.let { onReopenError?.invoke(it) } }
+            onFailure = { error -> error.message?.let { onReopenError?.invoke(it) } },
         )
     }
 
@@ -340,7 +376,7 @@ class EventDetailsViewModel(
 
 inline fun <R, reified T> Result<T>.mockSafeFold(
     onSuccess: (value: T) -> R,
-    onFailure: (exception: Throwable) -> R
+    onFailure: (exception: Throwable) -> R,
 ): R = when {
     isSuccess -> {
         val value = getOrNull()
@@ -353,20 +389,21 @@ inline fun <R, reified T> Result<T>.mockSafeFold(
             if ((value as Result<*>).isSuccess) {
                 valueNotNull::class.java.getDeclaredField("value").let {
                     it.isAccessible = true
-                    it.get(value) as T
+                    it[value] as T
                 }.let(onSuccess)
             } else {
                 valueNotNull::class.java.getDeclaredField("value").let {
                     it.isAccessible = true
-                    it.get(value)
+                    it[value]
                 }.let { failure ->
                     failure!!::class.java.getDeclaredField("exception").let {
                         it.isAccessible = true
-                        it.get(failure) as Exception
+                        it[failure] as Exception
                     }
                 }.let(onFailure)
             }
         }
     }
+
     else -> onFailure(exceptionOrNull() ?: Exception())
 }

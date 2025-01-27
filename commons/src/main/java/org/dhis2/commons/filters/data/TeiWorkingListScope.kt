@@ -41,7 +41,10 @@ data class TeiWorkingListScope(
     val enrollmentDate: String?,
     val eventStatusList: List<String>?,
     val eventDateList: List<String>?,
-    val assignedToMe: List<AssignedUserMode>?
+    val assignedToMe: List<AssignedUserMode>?,
+    val filters: Map<String, String>?,
+    val stageUid: String?,
+    val dataValues: Map<String, String>?,
 ) : WorkingListScope() {
     override fun isAssignedActive(): Boolean = assignedToMe?.isNotEmpty() == true
     override fun isAssignedToMeActive(): Boolean =
@@ -75,7 +78,7 @@ data class EventWorkingListScope(
     val stageUid: String?,
     val eventDate: String?,
     val eventStatusList: List<String>?,
-    val assignedToMe: AssignedUserMode?
+    val assignedToMe: AssignedUserMode?,
 ) : WorkingListScope() {
     override fun isAssignedActive(): Boolean = assignedToMe != null
     override fun isAssignedToMeActive(): Boolean = assignedToMe == AssignedUserMode.CURRENT
@@ -97,28 +100,31 @@ data class EventWorkingListScope(
 }
 
 fun TrackedEntityInstanceQueryRepositoryScope.mapToWorkingListScope(
-    resources: FilterResources
+    resources: FilterResources,
 ): TeiWorkingListScope {
     return TeiWorkingListScope(
         enrollmentStatus()?.let { resources.enrollmentStatusToText(it) },
         programDate()?.let { resources.dateFilterPeriodToText(it) },
         resources.eventStatusToText(
             eventFilters().mapNotNull { it.eventStatus() }
-                .flatten().distinct()
+                .flatten().distinct(),
         ),
         eventFilters().mapNotNull { it.eventDate() }
             .mapNotNull { resources.dateFilterPeriodToText(it) },
-        eventFilters().mapNotNull { it.assignedUserMode() }.distinct()
+        eventFilters().mapNotNull { it.assignedUserMode() }.distinct(),
+        filter().associateBy({ it.key() }, { it.value() }),
+        programStage(),
+        dataValue().associateBy({ it.key() }, { it.value() }),
     )
 }
 
 fun EventQueryRepositoryScope.mapToEventWorkingListScope(
-    resources: FilterResources
+    resources: FilterResources,
 ): EventWorkingListScope {
     return EventWorkingListScope(
         programStage(),
         eventDate()?.let { resources.dateFilterPeriodToText(it) },
         eventStatus()?.let { resources.eventStatusToText(it) },
-        assignedUserMode()
+        assignedUserMode(),
     )
 }

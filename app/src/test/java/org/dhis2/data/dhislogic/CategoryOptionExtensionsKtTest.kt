@@ -1,7 +1,7 @@
 package org.dhis2.data.dhislogic
 
-import java.time.Instant
-import java.util.Date
+import org.dhis2.commons.extensions.inDateRange
+import org.dhis2.commons.extensions.inOrgUnit
 import org.hisp.dhis.android.core.category.CategoryOption
 import org.hisp.dhis.android.core.common.Access
 import org.hisp.dhis.android.core.common.DataAccess
@@ -9,6 +9,8 @@ import org.hisp.dhis.android.core.common.ObjectWithUid
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
+import java.util.Date
 
 class CategoryOptionExtensionsKtTest {
 
@@ -18,14 +20,14 @@ class CategoryOptionExtensionsKtTest {
             catOption(null, null).inDateRange(null) &&
                 catOption(Date(), Date()).inDateRange(null) &&
                 catOption(Date(), null).inDateRange(null) &&
-                catOption(null, Date()).inDateRange(null)
+                catOption(null, Date()).inDateRange(null),
         )
     }
 
     @Test
     fun `Should return true if date not null and option does not have start and end dates`() {
         assertTrue(
-            catOption(null, null).inDateRange(Date())
+            catOption(null, null).inDateRange(Date()),
         )
     }
 
@@ -34,7 +36,7 @@ class CategoryOptionExtensionsKtTest {
         val date = Date.from(Instant.parse("2020-01-02T00:00:00.00Z"))
         val startDate = Date.from(Instant.parse("2020-01-01T00:00:00.00Z"))
         assertTrue(
-            catOption(startDate, null).inDateRange(date)
+            catOption(startDate, null).inDateRange(date),
         )
     }
 
@@ -43,7 +45,7 @@ class CategoryOptionExtensionsKtTest {
         val date = Date.from(Instant.parse("2020-01-02T00:00:00.00Z"))
         val endDate = Date.from(Instant.parse("2020-01-03T00:00:00.00Z"))
         assertTrue(
-            catOption(null, endDate).inDateRange(date)
+            catOption(null, endDate).inDateRange(date),
         )
     }
 
@@ -53,7 +55,7 @@ class CategoryOptionExtensionsKtTest {
         val startDate = Date.from(Instant.parse("2020-01-01T00:00:00.00Z"))
         val endDate = Date.from(Instant.parse("2020-01-03T00:00:00.00Z"))
         assertTrue(
-            catOption(startDate, endDate).inDateRange(date)
+            catOption(startDate, endDate).inDateRange(date),
         )
     }
 
@@ -63,7 +65,7 @@ class CategoryOptionExtensionsKtTest {
         val orgUnits = listOf(ObjectWithUid.create(orgUnitUid))
         assertTrue(
             catOption(null).inOrgUnit(null) &&
-                catOption(orgUnits).inOrgUnit(null)
+                catOption(orgUnits).inOrgUnit(null),
         )
     }
 
@@ -71,7 +73,7 @@ class CategoryOptionExtensionsKtTest {
     fun `Should return true if orgUnits are null`() {
         val orgUnitUid = "orgUnitUid"
         assertTrue(
-            catOption(null).inOrgUnit(orgUnitUid)
+            catOption(null).inOrgUnit(orgUnitUid),
         )
     }
 
@@ -79,7 +81,7 @@ class CategoryOptionExtensionsKtTest {
     fun `Should return false if orgUnits are empty`() {
         val orgUnitUid = "orgUnitUid"
         assertFalse(
-            catOption(listOf()).inOrgUnit(orgUnitUid)
+            catOption(listOf()).inOrgUnit(orgUnitUid),
         )
     }
 
@@ -88,7 +90,7 @@ class CategoryOptionExtensionsKtTest {
         val orgUnitUid = "orgUnitUid"
         val orgUnits = listOf(ObjectWithUid.create(orgUnitUid))
         assertTrue(
-            catOption(orgUnits).inOrgUnit(orgUnitUid)
+            catOption(orgUnits).inOrgUnit(orgUnitUid),
         )
     }
 
@@ -97,7 +99,7 @@ class CategoryOptionExtensionsKtTest {
         val orgUnitUid = "orgUnitUid"
         val orgUnits = listOf(ObjectWithUid.create("otherUid"))
         assertFalse(
-            catOption(orgUnits).inOrgUnit(orgUnitUid)
+            catOption(orgUnits).inOrgUnit(orgUnitUid),
         )
     }
 
