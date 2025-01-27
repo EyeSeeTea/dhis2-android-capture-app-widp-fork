@@ -6,16 +6,11 @@ import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.compose.ui.platform.ComposeView
 import androidx.databinding.BindingAdapter
-import java.text.SimpleDateFormat
-import java.util.Date
 import org.dhis2.commons.R
 import org.dhis2.commons.data.ProgramEventViewModel
 import org.dhis2.commons.date.DateUtils
-import org.dhis2.commons.resources.ColorUtils
-import org.dhis2.commons.resources.ResourceManager
 import org.dhis2.ui.MetadataIconData
 import org.dhis2.ui.setUpMetadataIcon
-import org.hisp.dhis.android.core.common.ObjectStyle
 import org.hisp.dhis.android.core.common.State
 import org.hisp.dhis.android.core.enrollment.Enrollment
 import org.hisp.dhis.android.core.enrollment.EnrollmentStatus
@@ -24,6 +19,8 @@ import org.hisp.dhis.android.core.event.EventStatus
 import org.hisp.dhis.android.core.period.PeriodType
 import org.hisp.dhis.android.core.program.Program
 import org.hisp.dhis.android.core.program.ProgramStage
+import java.text.SimpleDateFormat
+import java.util.Date
 
 @BindingAdapter(value = ["stateIcon", "showSynced"], requireAll = false)
 fun ImageView.setStateIcon(state: State?, showSynced: Boolean?) {
@@ -62,13 +59,13 @@ fun ImageView.setStateIcon(state: State?, showSynced: Boolean?) {
 
 @BindingAdapter(
     value = ["eventStatusIcon", "enrollmentStatusIcon", "eventProgramStage", "eventProgram"],
-    requireAll = false
+    requireAll = false,
 )
 fun ImageView.setEventIcon(
     event: Event?,
     enrollment: Enrollment?,
     eventProgramStage: ProgramStage?,
-    program: Program
+    program: Program,
 ) {
     event?.let {
         val status = event.status() ?: EventStatus.ACTIVE
@@ -77,7 +74,7 @@ fun ImageView.setEventIcon(
         } ?: true
         val drawableResource = when (status) {
             EventStatus.ACTIVE -> getOpenIcon(
-                isEnrollmentActive && !event.isExpired(eventProgramStage, program)
+                isEnrollmentActive && !event.isExpired(eventProgramStage, program),
             )
             EventStatus.OVERDUE -> getOverdueIcon(isEnrollmentActive)
             EventStatus.COMPLETED -> getCompletedIcon(isEnrollmentActive)
@@ -102,7 +99,7 @@ private fun Event.isExpired(eventProgramStage: ProgramStage?, program: Program):
         status(),
         program.completeEventsExpiryDays() ?: 0,
         eventProgramStage?.periodType() ?: program.expiryPeriodType(),
-        program.expiryDays() ?: 0
+        program.expiryDays() ?: 0,
     )
 }
 
@@ -160,27 +157,11 @@ fun TextView.parseDate(date: Date?) {
 }
 
 @BindingAdapter("set_metadata_icon")
-fun ComposeView.setIconStyle(style: ObjectStyle?) {
-    style?.let {
-        val color = ColorUtils.getColorFrom(
-            style.color(),
-            ColorUtils.getPrimaryColor(context, ColorUtils.ColorType.PRIMARY_LIGHT)
-        )
-        val resource = ResourceManager(context).getObjectStyleDrawableResource(
-            style.icon(),
-            R.drawable.ic_default_outline
-        )
+fun ComposeView.setIconStyle(metadataIconData: MetadataIconData?) {
+    metadataIconData?.let {
         setUpMetadataIcon(
-            MetadataIconData(color, resource, 48),
-            true
+            metadataIconData,
+            true,
         )
     }
-}
-
-@BindingAdapter("set_metadata_icon_data")
-fun ComposeView.setIconData(iconData: MetadataIconData) {
-    setUpMetadataIcon(
-        metadataIconData = iconData.copy(sizeInDp = 48),
-        true
-    )
 }

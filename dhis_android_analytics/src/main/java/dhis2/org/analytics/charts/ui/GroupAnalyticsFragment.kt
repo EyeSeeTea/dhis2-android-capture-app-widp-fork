@@ -14,16 +14,15 @@ import dhis2.org.analytics.charts.data.AnalyticGroup
 import dhis2.org.analytics.charts.di.AnalyticsComponentProvider
 import dhis2.org.analytics.charts.extensions.isNotCurrent
 import dhis2.org.analytics.charts.ui.di.AnalyticsFragmentModule
+import dhis2.org.analytics.charts.ui.dialog.SearchColumnDialog
 import dhis2.org.databinding.AnalyticsGroupBinding
 import dhis2.org.databinding.AnalyticsItemBinding
-import javax.inject.Inject
 import org.dhis2.commons.bindings.clipWithRoundedCorners
 import org.dhis2.commons.bindings.scrollToPosition
 import org.dhis2.commons.dialogs.AlertBottomDialog
 import org.dhis2.commons.orgunitselector.OUTreeFragment
-import org.dhis2.commons.orgunitselector.OnOrgUnitSelectionFinished
 import org.hisp.dhis.android.core.common.RelativePeriod
-import org.hisp.dhis.android.core.organisationunit.OrganisationUnit
+import javax.inject.Inject
 
 const val ARG_MODE = "ARG_MODE"
 const val ARG_UID = "ARG_UID"
@@ -94,7 +93,7 @@ class GroupAnalyticsFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         postponeEnterTransition()
 
@@ -112,26 +111,40 @@ class GroupAnalyticsFragment : Fragment() {
     private fun setUpAdapter() {
         adapter.apply {
             onRelativePeriodCallback =
-                { chartModel, relativePeriod, current ->
+                { chartModel, relativePeriod, current, lineListingColumnId ->
                     groupViewModel.trackAnalyticsPeriodFilter(mode)
                     relativePeriod?.let {
                         if (it.isNotCurrent()) {
-                            showAlertDialogCurrentPeriod(chartModel, relativePeriod, current)
+                            showAlertDialogCurrentPeriod(
+                                chartModel,
+                                relativePeriod,
+                                current,
+                                lineListingColumnId,
+                            )
                         } else {
-                            groupViewModel.filterByPeriod(chartModel, mutableListOf(it))
+                            groupViewModel.filterByPeriod(
+                                chartModel,
+                                mutableListOf(it),
+                                lineListingColumnId,
+                            )
                         }
                     }
                 }
 
             onOrgUnitCallback =
-                { chartModel: ChartModel, orgUnitFilterType: OrgUnitFilterType ->
+                { chartModel, orgUnitFilterType, lineListingColumnId ->
                     groupViewModel.trackAnalyticsOrgUnitFilter(mode)
                     when (orgUnitFilterType) {
-                        OrgUnitFilterType.SELECTION -> showOUTreeSelector(chartModel)
+                        OrgUnitFilterType.SELECTION -> showOUTreeSelector(
+                            chartModel,
+                            lineListingColumnId,
+                        )
+
                         else -> groupViewModel.filterByOrgUnit(
                             chartModel,
                             emptyList(),
-                            orgUnitFilterType
+                            orgUnitFilterType,
+                            lineListingColumnId,
                         )
                     }
                 }
@@ -143,13 +156,18 @@ class GroupAnalyticsFragment : Fragment() {
             onChartTypeChanged = {
                 groupViewModel.trackChartTypeChanged(mode)
             }
+
+            onSearchCallback = { chartModel, column ->
+                showValueFilter(chartModel, column)
+            }
         }
     }
 
     private fun showAlertDialogCurrentPeriod(
         chartModel: ChartModel,
         relativePeriod: RelativePeriod?,
-        current: RelativePeriod?
+        current: RelativePeriod?,
+        lineListingColumnId: Int?,
     ) {
         val periodList = mutableListOf<RelativePeriod>()
         AlertBottomDialog.instance
@@ -157,31 +175,41 @@ class GroupAnalyticsFragment : Fragment() {
             .setMessage(getString(R.string.include_this_period_body))
             .setNegativeButton(getString(R.string.no)) {
                 relativePeriod?.let { periodList.add(relativePeriod) }
-                groupViewModel.filterByPeriod(chartModel, periodList)
+                groupViewModel.filterByPeriod(chartModel, periodList, lineListingColumnId)
             }
             .setPositiveButton(getString(R.string.yes)) {
                 relativePeriod?.let { periodList.add(relativePeriod) }
                 current?.let { periodList.add(current) }
-                groupViewModel.filterByPeriod(chartModel, periodList)
+                groupViewModel.filterByPeriod(chartModel, periodList, lineListingColumnId)
             }
             .show(parentFragmentManager, AlertBottomDialog::class.java.simpleName)
     }
 
-    private fun showOUTreeSelector(chartModel: ChartModel) {
-        val ouTreeFragment =
-            OUTreeFragment.newInstance(
-                true,
-                chartModel.graph.orgUnitsSelected.toMutableList()
+    private fun showOUTreeSelector(chartModel: ChartModel, lineListingColumnId: Int?) {
+        OUTreeFragment.Builder()
+            .showAsDialog()
+            .withPreselectedOrgUnits(
+                chartModel.graph.orgUnitsSelected(lineListingColumnId).toMutableList(),
             )
-        ouTreeFragment.selectionCallback = object : OnOrgUnitSelectionFinished {
-            override fun onSelectionFinished(selectedOrgUnits: List<OrganisationUnit>) {
+            .onSelection { selectedOrgUnits ->
                 groupViewModel.filterByOrgUnit(
-                    chartModel, selectedOrgUnits,
-                    OrgUnitFilterType.SELECTION
+                    chartModel,
+                    selectedOrgUnits,
+                    OrgUnitFilterType.SELECTION,
+                    lineListingColumnId,
                 )
             }
-        }
-        ouTreeFragment.show(childFragmentManager, "OUTreeFragment")
+            .build()
+            .show(childFragmentManager, "OUTreeFragment")
+    }
+
+    private fun showValueFilter(chartModel: ChartModel, column: Int) {
+        SearchColumnDialog(
+            chartModel.graph.categories[column],
+            onSearch = {
+                groupViewModel.filterLineListingRows(chartModel, column, it)
+            },
+        ).show(childFragmentManager, SearchColumnDialog.TAG)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -198,6 +226,7 @@ class GroupAnalyticsFragment : Fragment() {
                         addChips(chips)
                     }
                 }
+
                 chipResult.isFailure -> {
                     binding?.progressLayout?.visibility = View.GONE
                     binding?.emptyAnalytics?.apply {
@@ -213,6 +242,7 @@ class GroupAnalyticsFragment : Fragment() {
                 analytics.isSuccess -> adapter.submitList(analytics.getOrDefault(emptyList())) {
                     binding?.progressLayout?.visibility = View.GONE
                 }
+
                 analytics.isFailure -> {
                     binding?.progressLayout?.visibility = View.GONE
                     binding?.emptyAnalytics?.apply {
@@ -230,7 +260,8 @@ class GroupAnalyticsFragment : Fragment() {
             binding?.analyticChipGroup?.addView(
                 AnalyticsItemBinding.inflate(
                     layoutInflater,
-                    binding?.analyticChipGroup, false
+                    binding?.analyticChipGroup,
+                    false,
                 ).apply {
                     chip.id = idChip
                     chip.text = analyticGroup.name
@@ -244,7 +275,7 @@ class GroupAnalyticsFragment : Fragment() {
                             groupViewModel.fetchAnalytics(buttonView.tag as String)
                         }
                     }
-                }.root
+                }.root,
             )
             idChip++
         }

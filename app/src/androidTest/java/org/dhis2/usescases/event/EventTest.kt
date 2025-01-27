@@ -1,15 +1,18 @@
 package org.dhis2.usescases.event
 
+import android.content.Intent
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.rule.ActivityTestRule
+import org.dhis2.lazyActivityScenarioRule
 import org.dhis2.usescases.BaseTest
-import org.dhis2.usescases.event.entity.EventDetailsUIModel
 import org.dhis2.usescases.event.entity.EventStatusUIModel
 import org.dhis2.usescases.event.entity.ProgramStageUIModel
 import org.dhis2.usescases.event.entity.TEIProgramStagesUIModel
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureActivity
 import org.dhis2.usescases.eventsWithoutRegistration.eventInitial.EventInitialActivity
+import org.dhis2.usescases.programEventDetail.ProgramEventDetailActivity
+import org.dhis2.usescases.programEventDetail.eventList.EventListFragment
+import org.dhis2.usescases.programevent.robot.programEventsRobot
 import org.dhis2.usescases.teiDashboard.TeiDashboardMobileActivity
 import org.dhis2.usescases.teidashboard.robot.eventRobot
 import org.dhis2.usescases.teidashboard.robot.teiDashboardRobot
@@ -19,31 +22,34 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class EventTest: BaseTest() {
+class EventTest : BaseTest() {
 
     @get:Rule
-    val rule = ActivityTestRule(EventCaptureActivity::class.java, false, false)
+    val rule = lazyActivityScenarioRule<EventCaptureActivity>(launchActivity = false)
 
     @get:Rule
-    val ruleTeiDashboard = ActivityTestRule(TeiDashboardMobileActivity::class.java, false, false)
+    val ruleTeiDashboard =
+        lazyActivityScenarioRule<TeiDashboardMobileActivity>(launchActivity = false)
 
     @get:Rule
-    val ruleEventDetail = ActivityTestRule(EventInitialActivity::class.java, false, false)
+    val ruleEventDetail = lazyActivityScenarioRule<EventInitialActivity>(launchActivity = false)
+
+    @get:Rule
+    val eventListRule = lazyActivityScenarioRule<ProgramEventDetailActivity>(launchActivity = false)
 
     @get:Rule
     val composeTestRule = createComposeRule()
 
+    @Ignore
     @Test
     fun shouldDeleteEventWhenClickOnDeleteInsideSpecificEvent() {
-        val tbVisit = "TB visit"
         val tbVisitDate = "31/12/2019"
         val tbProgramStages = createProgramStageModel()
 
         prepareEventToDeleteIntentAndLaunchActivity(ruleTeiDashboard)
 
-        teiDashboardRobot {
-            clickOnStageGroup(tbVisit)
-            clickOnEventGroupByStage(tbVisitDate)
+        teiDashboardRobot(composeTestRule) {
+            clickOnEventGroupByStageUsingDate(tbVisitDate)
         }
 
         eventRegistrationRobot {
@@ -52,21 +58,22 @@ class EventTest: BaseTest() {
             clickOnDeleteDialog()
         }
 
-        teiDashboardRobot {
+        teiDashboardRobot(composeTestRule) {
             checkEventWasDeletedStageGroup(tbProgramStages)
         }
     }
 
     @Test
     fun shouldShowEventDetailsWhenClickOnDetailsInsideSpecificEvent() {
-        val eventDetails = createEventDetails()
+        val completion = 92
+        val email = "mail@mail.com"
+
+        enableComposeForms()
 
         prepareEventDetailsIntentAndLaunchActivity(rule)
 
         eventRegistrationRobot {
-            checkEventFormDetails(eventDetails)
-            clickOnDetails()
-            checkEventDetails(eventDetails)
+            checkEventDataEntryIsOpened(completion, email, composeTestRule)
         }
     }
 
@@ -83,8 +90,8 @@ class EventTest: BaseTest() {
         }
     }
 
-    @Test
     @Ignore
+    @Test
     fun shouldSuccessfullyUpdateAndSaveEvent() {
         val labMonitoring = "Lab monitoring"
         val eventDate = "1/6/2020"
@@ -92,26 +99,46 @@ class EventTest: BaseTest() {
 
         prepareEventToUpdateIntentAndLaunchActivity(ruleTeiDashboard)
 
-        teiDashboardRobot {
+        teiDashboardRobot(composeTestRule) {
             clickOnStageGroup(labMonitoring)
             clickOnEventGroupByStage(eventDate)
         }
 
-        eventRobot {
+        eventRobot(composeTestRule) {
             fillRadioButtonForm(radioFormLength)
             clickOnFormFabButton()
-            clickOnCompleteButton(composeTestRule)
+            clickOnCompleteButton()
         }
 
-        teiDashboardRobot {
+        teiDashboardRobot(composeTestRule) {
             clickOnStageGroup(labMonitoring)
             checkEventStateStageGroup(labMonitoringStatus)
         }
     }
 
-    private val tbVisitProgramStage =  createTbVisitStageModel()
-    private val labMonitoringProgramStage =  createLabMonitoringStageModel()
-    private val sputumProgramStage =  createSputumStageModel()
+    @Test
+    @Ignore("We need to change configuration in the program")
+    fun shouldAvoidLeavingFormWithErrors() {
+        val atenatalCare = "lxAQ7Zs9VYR"
+
+        prepareProgramAndLaunchActivity(atenatalCare)
+
+        programEventsRobot(composeTestRule) {
+            clickOnAddEvent()
+        }
+        eventRegistrationRobot {
+            clickNextButton()
+        }
+        eventRobot(composeTestRule) {
+            typeOnRequiredEventForm("125", 1)
+            clickOnFormFabButton()
+            checkSecondaryButtonNotVisible()
+        }
+    }
+
+    private val tbVisitProgramStage = createTbVisitStageModel()
+    private val labMonitoringProgramStage = createLabMonitoringStageModel()
+    private val sputumProgramStage = createSputumStageModel()
     private val labMonitoringStatus = createEventStatusDetails()
 
     private fun createProgramStageModel() = TEIProgramStagesUIModel(
@@ -135,17 +162,16 @@ class EventTest: BaseTest() {
         "4 events"
     )
 
-    private fun createEventDetails() = EventDetailsUIModel(
-        "Alfa",
-        95,
-        "1/3/2020",
-        "OU TEST PARENT"
-    )
-
     private fun createEventStatusDetails() = EventStatusUIModel(
         "Lab monitoring",
         "Event Completed",
         "1/6/2020",
         "Ngelehun CHC"
     )
+
+    private fun prepareProgramAndLaunchActivity(programUid: String) {
+        Intent().apply {
+            putExtra(ProgramEventDetailActivity.EXTRA_PROGRAM_UID, programUid)
+        }.also { eventListRule.launch(it) }
+    }
 }

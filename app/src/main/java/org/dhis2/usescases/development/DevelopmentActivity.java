@@ -1,10 +1,6 @@
 package org.dhis2.usescases.development;
 
-import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
-import android.util.DisplayMetrics;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -13,13 +9,15 @@ import androidx.databinding.DataBindingUtil;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import org.dhis2.App;
 import org.dhis2.R;
 import org.dhis2.commons.featureconfig.ui.FeatureConfigView;
 import org.dhis2.databinding.DevelopmentActivityBinding;
 import org.dhis2.usescases.general.ActivityGlobalAbstract;
-import org.dhis2.usescases.main.MainActivity;
-import org.dhis2.utils.customviews.BreakTheGlassBottomDialog;
+import org.hisp.dhis.android.core.D2;
+import org.hisp.dhis.android.core.D2Manager;
+import org.hisp.dhis.android.core.common.ValueType;
+import org.hisp.dhis.android.core.fileresource.FileResource;
+import org.hisp.dhis.android.core.fileresource.FileResourceDomain;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,9 +27,6 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.List;
-import java.util.Locale;
-
-import kotlin.Unit;
 
 public class DevelopmentActivity extends ActivityGlobalAbstract {
 
@@ -44,43 +39,74 @@ public class DevelopmentActivity extends ActivityGlobalAbstract {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.development_activity);
 
-        loadAnalyticsDevTools();
-        loadLocaleDevTools();
         loadIconsDevTools();
-        loadBreakTheGlass();
         loadCrashControl();
         loadFeatureConfig();
-        loadTable();
+        loadConflicts();
+        loadMultiText();
+        loadCustomIcons();
     }
 
-    private void loadAnalyticsDevTools() {
-        binding.matomoButton.setOnClickListener(view -> {
-            if (!binding.matomoUrl.getText().toString().isEmpty() &&
-                    !binding.matomoId.getText().toString().isEmpty()) {
-                ((App) getApplicationContext()).appComponent().matomoController().updateDhisImplementationTracker(
-                        binding.matomoUrl.getText().toString(),
-                        Integer.parseInt(binding.matomoId.getText().toString()),
-                        "dev-tracker"
+    private void loadCustomIcons() {
+        binding.forceCustomIcon.setOnClickListener(view -> {
+            D2 d2 = D2Manager.getD2();
+            FileResource fileResource = d2.fileResourceModule().fileResources()
+                    .byDomain().eq(FileResourceDomain.DATA_VALUE)
+                    .one().blockingGet();
+            if (fileResource != null) {
+                String uidToInsert = fileResource.uid();
+                d2.databaseAdapter().execSQL(
+                        String.format(
+                                "INSERT INTO CustomIcon (\"key\", \"fileResourceUid\", \"href\") VALUES (\"%s\",\"%s\",\"%s\")",
+                                uidToInsert,
+                                uidToInsert,
+                                uidToInsert
+                        )
+                );
+                d2.databaseAdapter().execSQL(
+                        String.format("UPDATE Program SET icon = \"%s\"", uidToInsert)
+                );
+                d2.databaseAdapter().execSQL(
+                        String.format("UPDATE DataSet SET icon = \"%s\"", uidToInsert)
+                );
+                d2.databaseAdapter().execSQL(
+                        String.format("UPDATE ProgramStage SET icon = \"%s\"", uidToInsert)
+                );
+                d2.databaseAdapter().execSQL(
+                        String.format("UPDATE Option SET icon = \"%s\"", uidToInsert)
+                );
+            } else {
+                Toast.makeText(this, "No file resource found. Add an image in a form and retry", Toast.LENGTH_SHORT).show();
+            }
+
+        });
+    }
+
+    private void loadMultiText() {
+        D2 d2 = D2Manager.getD2();
+        boolean hasMultiText = !d2.dataElementModule().dataElements().byValueType().eq(ValueType.MULTI_TEXT).blockingIsEmpty();
+        binding.multitext.setText(hasMultiText ? "REVERT" : "FORCE MULTITEXT");
+        binding.multitext.setOnClickListener(view -> {
+            if (hasMultiText) {
+                d2.databaseAdapter().execSQL(
+                        "UPDATE DataElement SET valueType = \"TEXT\" WHERE valueType = \"MULTI_TEXT\" AND optionSet IS NOT null"
+                );
+            } else {
+                d2.databaseAdapter().execSQL(
+                        "UPDATE DataElement SET valueType = \"MULTI_TEXT\" WHERE valueType = \"TEXT\" AND optionSet IS NOT null"
                 );
             }
         });
     }
 
-    private void loadLocaleDevTools() {
-        binding.localeButton.setOnClickListener(view -> {
-            if (binding.locale.getText().toString() != null) {
-                String localeCode = binding.locale.getText().toString();
-                Resources resources = getResources();
-                DisplayMetrics dm = resources.getDisplayMetrics();
-                Configuration config = resources.getConfiguration();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                    config.setLocale(new Locale(localeCode.toLowerCase()));
-                } else {
-                    config.locale = new Locale(localeCode.toLowerCase());
-                }
-                resources.updateConfiguration(config, dm);
-                startActivity(MainActivity.class, null, true, true, null);
-            }
+    private void loadConflicts() {
+        binding.addConflicts.setOnClickListener(view -> {
+            D2 d2 = D2Manager.getD2();
+            new ConflictGenerator(d2).generate();
+        });
+        binding.clearConflicts.setOnClickListener(view -> {
+            D2 d2 = D2Manager.getD2();
+            new ConflictGenerator(d2).clear();
         });
     }
 
@@ -205,18 +231,6 @@ public class DevelopmentActivity extends ActivityGlobalAbstract {
         renderIconForPosition(count);
     }
 
-    private void loadBreakTheGlass() {
-        binding.breakGlassButton.setOnClickListener(view ->
-                new BreakTheGlassBottomDialog()
-                        .setPositiveButton(reason -> {
-                            Toast.makeText(this, reason, Toast.LENGTH_SHORT).show();
-                            return Unit.INSTANCE;
-                        })
-                        .show(
-                                getSupportFragmentManager(),
-                                BreakTheGlassBottomDialog.class.getName()));
-    }
-
     private void loadCrashControl() {
         binding.crashButton.setOnClickListener(view -> {
             throw new IllegalArgumentException("KA BOOOOOM!");
@@ -227,11 +241,6 @@ public class DevelopmentActivity extends ActivityGlobalAbstract {
         binding.featureConfigButton.setOnClickListener(view -> {
             startActivity(FeatureConfigView.class, null, false, false, null);
         });
-    }
-
-    private void loadTable() {
-        binding.tableButton.setOnClickListener(view ->
-                startActivity(TableTestActivity.class, null, false, false, null));
     }
 
     @Override

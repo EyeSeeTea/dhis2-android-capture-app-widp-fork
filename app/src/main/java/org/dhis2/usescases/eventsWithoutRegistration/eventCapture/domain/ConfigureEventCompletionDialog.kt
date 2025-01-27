@@ -1,11 +1,11 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventCapture.domain
 
-import org.dhis2.commons.data.FieldWithIssue
-import org.dhis2.commons.data.IssueType
-import org.dhis2.commons.dialogs.bottomsheet.BottomSheetDialogUiModel
-import org.dhis2.commons.dialogs.bottomsheet.DialogButtonStyle.CompleteButton
-import org.dhis2.commons.dialogs.bottomsheet.DialogButtonStyle.MainButton
-import org.dhis2.commons.dialogs.bottomsheet.DialogButtonStyle.SecondaryButton
+import org.dhis2.ui.dialogs.bottomsheet.BottomSheetDialogUiModel
+import org.dhis2.ui.dialogs.bottomsheet.DialogButtonStyle.CompleteButton
+import org.dhis2.ui.dialogs.bottomsheet.DialogButtonStyle.MainButton
+import org.dhis2.ui.dialogs.bottomsheet.DialogButtonStyle.SecondaryButton
+import org.dhis2.ui.dialogs.bottomsheet.FieldWithIssue
+import org.dhis2.ui.dialogs.bottomsheet.IssueType
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.domain.ConfigureEventCompletionDialog.DialogType.COMPLETE_ERROR
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.domain.ConfigureEventCompletionDialog.DialogType.ERROR
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.domain.ConfigureEventCompletionDialog.DialogType.MANDATORY
@@ -15,9 +15,10 @@ import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.model.EventCom
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.model.EventCompletionDialog
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.provider.EventCaptureResourcesProvider
 import org.dhis2.utils.customviews.FormBottomDialog
+import org.hisp.dhis.android.core.event.EventStatus
 
 class ConfigureEventCompletionDialog(
-    val provider: EventCaptureResourcesProvider
+    val provider: EventCaptureResourcesProvider,
 ) {
 
     operator fun invoke(
@@ -25,37 +26,43 @@ class ConfigureEventCompletionDialog(
         mandatoryFields: Map<String, String>,
         warningFields: List<FieldWithIssue>,
         canComplete: Boolean,
-        onCompleteMessage: String?
+        onCompleteMessage: String?,
+        canSkipErrorFix: Boolean,
+        eventState: EventStatus,
     ): EventCompletionDialog {
         val dialogType = getDialogType(
             errorFields,
             mandatoryFields,
             warningFields,
-            !canComplete && onCompleteMessage != null
+            !canComplete && onCompleteMessage != null,
         )
-        val mainButton = getMainButton(dialogType)
-        val secondaryButton = EventCompletionButtons(
-            SecondaryButton(provider.provideNotNow()),
-            FormBottomDialog.ActionType.FINISH
-        )
+        val mainButton = getMainButton(dialogType, eventState)
+        val secondaryButton = if (canSkipErrorFix || dialogType == WARNING) {
+            EventCompletionButtons(
+                SecondaryButton(provider.provideNotNow()),
+                FormBottomDialog.ActionType.FINISH,
+            )
+        } else {
+            null
+        }
         val bottomSheetDialogUiModel = BottomSheetDialogUiModel(
             title = getTitle(dialogType),
-            subtitle = getSubtitle(dialogType),
+            message = getSubtitle(dialogType, eventState),
             iconResource = getIcon(dialogType),
-            fieldsWithIssues = getFieldsWithIssues(
-                errorFields = errorFields,
-                mandatoryFields = mandatoryFields.keys.toList(),
-                warningFields = warningFields,
-                onCompleteField = getOnCompleteMessage(canComplete, onCompleteMessage)
-            ),
             mainButton = mainButton.buttonStyle,
-            secondaryButton = secondaryButton.buttonStyle
+            secondaryButton = secondaryButton?.buttonStyle,
         )
 
         return EventCompletionDialog(
             bottomSheetDialogUiModel = bottomSheetDialogUiModel,
             mainButtonAction = mainButton.action,
-            secondaryButtonAction = secondaryButton.action
+            secondaryButtonAction = secondaryButton?.action,
+            fieldsWithIssues = getFieldsWithIssues(
+                errorFields = errorFields,
+                mandatoryFields = mandatoryFields.keys.toList(),
+                warningFields = warningFields,
+                onCompleteField = getOnCompleteMessage(canComplete, onCompleteMessage),
+            ),
         )
     }
 
@@ -64,10 +71,10 @@ class ConfigureEventCompletionDialog(
         else -> provider.provideSavedText()
     }
 
-    private fun getSubtitle(type: DialogType) = when (type) {
+    private fun getSubtitle(type: DialogType, eventState: EventStatus) = when (type) {
         ERROR -> provider.provideErrorInfo()
         MANDATORY -> provider.provideMandatoryInfo()
-        WARNING -> provider.provideWarningInfo()
+        WARNING -> if (eventState == EventStatus.COMPLETED) provider.provideWarningInfoCompletedEvent() else provider.provideWarningInfo()
         SUCCESSFUL -> provider.provideCompleteInfo()
         COMPLETE_ERROR -> provider.provideOnCompleteErrorInfo()
     }
@@ -79,17 +86,30 @@ class ConfigureEventCompletionDialog(
         SUCCESSFUL -> provider.provideSavedIcon()
     }
 
-    private fun getMainButton(type: DialogType) = when (type) {
+    private fun getMainButton(type: DialogType, eventState: EventStatus) = when (type) {
         ERROR,
         MANDATORY,
-        COMPLETE_ERROR -> EventCompletionButtons(
+        COMPLETE_ERROR,
+        -> EventCompletionButtons(
             MainButton(provider.provideReview()),
-            FormBottomDialog.ActionType.CHECK_FIELDS
+            FormBottomDialog.ActionType.CHECK_FIELDS,
         )
-        WARNING,
-        SUCCESSFUL -> EventCompletionButtons(
-            CompleteButton(),
-            FormBottomDialog.ActionType.COMPLETE
+
+        WARNING -> if (eventState == EventStatus.COMPLETED) {
+            EventCompletionButtons(
+                MainButton(provider.provideReview()),
+                FormBottomDialog.ActionType.CHECK_FIELDS,
+            )
+        } else {
+            EventCompletionButtons(
+                CompleteButton,
+                FormBottomDialog.ActionType.COMPLETE,
+            )
+        }
+        SUCCESSFUL,
+        -> EventCompletionButtons(
+            CompleteButton,
+            FormBottomDialog.ActionType.COMPLETE,
         )
     }
 
@@ -97,7 +117,7 @@ class ConfigureEventCompletionDialog(
         errorFields: List<FieldWithIssue>,
         mandatoryFields: List<String>,
         warningFields: List<FieldWithIssue>,
-        onCompleteField: List<FieldWithIssue>
+        onCompleteField: List<FieldWithIssue>,
     ): List<FieldWithIssue> {
         return onCompleteField
             .plus(errorFields)
@@ -107,15 +127,15 @@ class ConfigureEventCompletionDialog(
                         "uid",
                         it,
                         IssueType.MANDATORY,
-                        provider.provideMandatoryField()
+                        provider.provideMandatoryField(),
                     )
-                }
+                },
             ).plus(warningFields)
     }
 
     private fun getOnCompleteMessage(
         canComplete: Boolean,
-        onCompleteMessage: String?
+        onCompleteMessage: String?,
     ): List<FieldWithIssue> {
         val issueOnComplete = onCompleteMessage?.let {
             FieldWithIssue(
@@ -125,7 +145,7 @@ class ConfigureEventCompletionDialog(
                     false -> IssueType.ERROR_ON_COMPLETE
                     else -> IssueType.WARNING_ON_COMPLETE
                 },
-                message = ""
+                message = "",
             )
         }
         return issueOnComplete?.let { listOf(it) } ?: emptyList()
@@ -135,20 +155,24 @@ class ConfigureEventCompletionDialog(
         errorFields: List<FieldWithIssue>,
         mandatoryFields: Map<String, String>,
         warningFields: List<FieldWithIssue>,
-        errorOnComplete: Boolean
+        errorOnComplete: Boolean,
     ) = when {
         errorOnComplete -> {
             COMPLETE_ERROR
         }
+
         errorFields.isNotEmpty() -> {
             ERROR
         }
+
         mandatoryFields.isNotEmpty() -> {
             MANDATORY
         }
+
         warningFields.isNotEmpty() -> {
             WARNING
         }
+
         else -> {
             SUCCESSFUL
         }

@@ -3,33 +3,22 @@ package org.dhis2.form.model
 import org.dhis2.commons.data.EntryMode
 
 sealed class FormRepositoryRecords(
-    val recordUid: String?,
-    val entryMode: EntryMode? = null,
-    val allowMandatoryFields: Boolean = true,
-    val isBackgroundTransparent: Boolean = true
+    val recordUid: String,
+    val entryMode: EntryMode,
 ) : java.io.Serializable
 
 class EnrollmentRecords(
     val enrollmentUid: String,
-    val enrollmentMode: EnrollmentMode
+    val enrollmentMode: EnrollmentMode,
 ) : FormRepositoryRecords(
     recordUid = enrollmentUid,
-    entryMode = EntryMode.ATTR
+    entryMode = EntryMode.ATTR,
 )
 
 class EventRecords(
-    val eventUid: String
+    val eventUid: String,
+    val eventMode: EventMode,
 ) : FormRepositoryRecords(
     recordUid = eventUid,
-    entryMode = EntryMode.DE
-)
-
-class SearchRecords(
-    val programUid: String?,
-    val teiTypeUid: String,
-    val currentSearchValues: Map<String, String>
-) : FormRepositoryRecords(
-    recordUid = programUid,
-    allowMandatoryFields = false,
-    isBackgroundTransparent = false
+    entryMode = EntryMode.DE,
 )

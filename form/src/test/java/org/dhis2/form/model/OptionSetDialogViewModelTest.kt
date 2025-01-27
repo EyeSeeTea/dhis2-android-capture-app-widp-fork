@@ -1,17 +1,13 @@
 package org.dhis2.form.model
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
-import com.nhaarman.mockitokotlin2.whenever
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import org.dhis2.commons.viewmodel.DispatcherProvider
 import org.dhis2.form.data.SearchOptionSetOption
 import org.hisp.dhis.android.core.option.Option
 import org.junit.After
@@ -19,6 +15,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 @ExperimentalCoroutinesApi
 class OptionSetDialogViewModelTest {
@@ -56,13 +57,13 @@ class OptionSetDialogViewModelTest {
                 optionSetUid,
                 "",
                 emptyList(),
-                emptyList()
-            )
+                emptyList(),
+            ),
         ) doReturn mockedOptions
         viewModel = OptionSetDialogViewModel(
             searchOptionSetOption,
             field,
-            dispatchers
+            dispatchers,
         )
         testingDispatcher.scheduler.advanceUntilIdle()
     }
@@ -86,15 +87,19 @@ class OptionSetDialogViewModelTest {
             optionSetUid,
             "test",
             emptyList(),
-            emptyList()
+            emptyList(),
         )
     }
 
     @Test
     fun `Should search and filter options to hide`() {
         val optionsToHide = listOf("Option1")
-        whenever(field.optionSetConfiguration) doReturn mock()
-        whenever(field.optionSetConfiguration?.optionsToHide) doReturn optionsToHide
+        whenever(field.optionSetConfiguration) doReturn OptionSetConfiguration.DefaultOptionSet(
+            options = emptyList(),
+            optionsToHide = optionsToHide,
+            optionsToShow = emptyList(),
+            emptyMap(),
+        )
         viewModel.onSearchingOption("test")
         testingDispatcher.scheduler.advanceUntilIdle()
         assertTrue(viewModel.searchValue.value == "test")
@@ -102,15 +107,19 @@ class OptionSetDialogViewModelTest {
             optionSetUid,
             "test",
             emptyList(),
-            optionsToHide
+            optionsToHide,
         )
     }
 
     @Test
     fun `Should search and filter options to show`() {
         val optionsToShow = listOf("Option1")
-        whenever(field.optionSetConfiguration) doReturn mock()
-        whenever(field.optionSetConfiguration?.optionsToShow) doReturn optionsToShow
+        whenever(field.optionSetConfiguration) doReturn OptionSetConfiguration.DefaultOptionSet(
+            options = emptyList(),
+            optionsToHide = emptyList(),
+            optionsToShow = optionsToShow,
+            emptyMap(),
+        )
         viewModel.onSearchingOption("test")
         assertTrue(viewModel.searchValue.value == "test")
         testingDispatcher.scheduler.advanceUntilIdle()
@@ -118,7 +127,7 @@ class OptionSetDialogViewModelTest {
             optionSetUid,
             "test",
             optionsToShow,
-            emptyList()
+            emptyList(),
         )
     }
 
@@ -126,10 +135,12 @@ class OptionSetDialogViewModelTest {
     fun `Should search and filter options to show and hide`() {
         val optionsToShow = listOf("Option1")
         val optionsToHide = listOf("Option1")
-
-        whenever(field.optionSetConfiguration) doReturn mock()
-        whenever(field.optionSetConfiguration?.optionsToShow) doReturn optionsToShow
-        whenever(field.optionSetConfiguration?.optionsToHide) doReturn optionsToHide
+        whenever(field.optionSetConfiguration) doReturn OptionSetConfiguration.DefaultOptionSet(
+            options = emptyList(),
+            optionsToHide = optionsToHide,
+            optionsToShow = optionsToShow,
+            emptyMap(),
+        )
         viewModel.onSearchingOption("test")
         testingDispatcher.scheduler.advanceUntilIdle()
         assertTrue(viewModel.searchValue.value == "test")
@@ -137,7 +148,7 @@ class OptionSetDialogViewModelTest {
             optionSetUid,
             "test",
             optionsToShow,
-            optionsToHide
+            optionsToHide,
         )
     }
 
@@ -148,7 +159,7 @@ class OptionSetDialogViewModelTest {
                     .uid("Option$index")
                     .displayName("name$index")
                     .code("code$index")
-                    .build()
+                    .build(),
             )
         }
     }

@@ -8,8 +8,6 @@ import org.dhis2.commons.dialogs.calendarpicker.di.CalendarPickerModule;
 import org.dhis2.commons.featureconfig.di.FeatureConfigActivityComponent;
 import org.dhis2.commons.featureconfig.di.FeatureConfigActivityModule;
 import org.dhis2.commons.filters.data.FilterPresenter;
-import org.dhis2.data.service.ReservedValuesWorkerComponent;
-import org.dhis2.data.service.ReservedValuesWorkerModule;
 import org.dhis2.data.service.SyncDataWorkerComponent;
 import org.dhis2.data.service.SyncDataWorkerModule;
 import org.dhis2.data.service.SyncGranularRxComponent;
@@ -72,8 +70,8 @@ import org.dhis2.usescases.teiDashboard.TeiDashboardComponent;
 import org.dhis2.usescases.teiDashboard.TeiDashboardModule;
 import org.dhis2.usescases.teiDashboard.dashboardfragments.relationships.RelationshipComponent;
 import org.dhis2.usescases.teiDashboard.dashboardfragments.relationships.RelationshipModule;
-import org.dhis2.usescases.teiDashboard.nfcdata.NfcDataWriteComponent;
-import org.dhis2.usescases.teiDashboard.nfcdata.NfcDataWriteModule;
+import org.dhis2.usescases.teiDashboard.dialogs.scheduling.SchedulingComponent;
+import org.dhis2.usescases.teiDashboard.dialogs.scheduling.SchedulingModule;
 import org.dhis2.usescases.teiDashboard.teiProgramList.TeiProgramListComponent;
 import org.dhis2.usescases.teiDashboard.teiProgramList.TeiProgramListModule;
 import org.dhis2.utils.optionset.OptionSetComponent;
@@ -153,15 +151,10 @@ public interface UserComponent extends UserComponentFlavor{
     SyncMetadataWorkerComponent plus(SyncMetadataWorkerModule syncDataWorkerModule);
 
     @NonNull
-    ReservedValuesWorkerComponent plus(ReservedValuesWorkerModule reservedValuesWorkerModule);
-
-    @NonNull
     EventCaptureComponent plus(EventCaptureModule eventCaptureModule);
 
     @NonNull
     SmsComponent plus(SmsModule smsModule);
-
-    NfcDataWriteComponent plus(NfcDataWriteModule nfcModule);
 
     @NonNull
     SyncGranularRxComponent plus(SyncGranularRxModule syncGranularRxModule);
@@ -213,4 +206,7 @@ public interface UserComponent extends UserComponentFlavor{
 
     @NonNull
     ChangeServerURLComponent plus(ChangeServerURLModule changeServerURLModule);
+
+    @NonNull
+    SchedulingComponent plus(SchedulingModule schedulingModule);
 }

@@ -1,12 +1,14 @@
 package org.dhis2.form.model
 
-import java.io.File
+import org.dhis2.commons.orgunitselector.OrgUnitSelectorScope
 import org.dhis2.form.ui.event.RecyclerViewUiEvents
 import org.dhis2.form.ui.event.UiEventFactory
 import org.dhis2.form.ui.intent.FormIntent
 import org.dhis2.form.ui.style.FormUiModelStyle
 import org.hisp.dhis.android.core.common.ValueType
 import org.hisp.dhis.android.core.option.Option
+import org.hisp.dhis.mobile.ui.designsystem.component.SelectableDates
+import java.io.File
 
 data class FieldUiModelImpl(
     override val uid: String,
@@ -33,6 +35,11 @@ data class FieldUiModelImpl(
     override val fieldMask: String? = null,
     override val isLoadingData: Boolean = false,
     override var optionSetConfiguration: OptionSetConfiguration?,
+    override var autocompleteList: List<String>?,
+    override val orgUnitSelectorScope: OrgUnitSelectorScope? = null,
+    override val selectableDates: SelectableDates? = null,
+    override val eventCategories: List<EventCategory>? = null,
+    override val periodSelector: PeriodSelector? = null,
     override val url: String? = null,
 ) : FieldUiModel {
 
@@ -58,14 +65,14 @@ data class FieldUiModelImpl(
             value?.isEmpty() == true -> null
             else -> value?.toString()
         }
-        callback?.intent(FormIntent.OnTextChange(uid, text))
+        callback?.intent(FormIntent.OnTextChange(uid, text, valueType))
     }
 
     override fun onDescriptionClick() {
         callback?.recyclerViewUiEvents(
             RecyclerViewUiEvents.ShowDescriptionLabelDialog(
                 label,
-                if (url== null) description else description + "\n" + url
+                if (url== null) description else description + "\n" + url,
             )
         )
     }
@@ -99,7 +106,11 @@ data class FieldUiModelImpl(
 
     override fun invokeUiEvent(uiEventType: UiEventType) {
         callback?.intent(FormIntent.OnRequestCoordinates(uid))
-        if (uiEventType != UiEventType.QR_CODE && !focused) {
+        if (uiEventType != UiEventType.QR_CODE &&
+            uiEventType != UiEventType.EMAIL &&
+            uiEventType != UiEventType.PHONE_NUMBER &&
+            !focused
+        ) {
             onItemClick()
         }
         uiEventFactory?.generateEvent(value, uiEventType, renderingType, this)?.let {
@@ -114,7 +125,7 @@ data class FieldUiModelImpl(
     override val textColor: Int?
         get() = style?.textColor(error, warning)
 
-    override val backGroundColor: Pair<Array<Int>, Int>?
+    override val backGroundColor: Pair<Array<Int>, Int?>?
         get() = style?.backgroundColor(valueType, error, warning)
 
     override val hasImage: Boolean
@@ -127,6 +138,8 @@ data class FieldUiModelImpl(
         get() = value?.toBoolean() == false
 
     override fun setValue(value: String?) = this.copy(value = value)
+
+    override fun setSelectableDates(selectableDates: SelectableDates?) = this.copy(selectableDates = selectableDates)
 
     override fun setIsLoadingData(isLoadingData: Boolean) = this.copy(isLoadingData = isLoadingData)
 
@@ -171,6 +184,8 @@ data class FieldUiModelImpl(
         if (optionSet != item.optionSet) return false
         if (allowFutureDates != item.allowFutureDates) return false
         if (callback != item.callback) return false
+        if (selectableDates != item.selectableDates) return false
+        if (eventCategories != item.eventCategories) return false
 
         return true
     }

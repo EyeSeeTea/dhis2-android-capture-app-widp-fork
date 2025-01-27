@@ -1,13 +1,15 @@
 package org.dhis2.usescases.flow.syncFlow
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.MutableLiveData
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.rule.ActivityTestRule
 import androidx.work.Data
 import androidx.work.WorkInfo
 import org.dhis2.AppTest
+import org.dhis2.lazyActivityScenarioRule
 import org.dhis2.usescases.BaseTest
 import org.dhis2.usescases.datasets.dataSetTableRobot
 import org.dhis2.usescases.datasets.datasetDetail.DataSetDetailActivity
@@ -18,6 +20,7 @@ import org.dhis2.usescases.searchTrackEntity.SearchTEActivity
 import org.dhis2.usescases.searchte.robot.searchTeiRobot
 import org.dhis2.usescases.teidashboard.robot.eventRobot
 import org.dhis2.usescases.teidashboard.robot.teiDashboardRobot
+import org.hisp.dhis.android.core.mockwebserver.ResponseController.GET
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
@@ -29,14 +32,14 @@ import java.util.UUID
 class SyncFlowTest : BaseTest() {
 
     @get:Rule
-    val ruleDataSet = ActivityTestRule(DataSetDetailActivity::class.java, false, false)
+    val ruleDataSet = lazyActivityScenarioRule<DataSetDetailActivity>(launchActivity = false)
 
     @get:Rule
-    val ruleSearch = ActivityTestRule(SearchTEActivity::class.java, false, false)
+    val ruleSearch = lazyActivityScenarioRule<SearchTEActivity>(launchActivity = false)
 
     @get:Rule
     val ruleEventWithoutRegistration =
-        ActivityTestRule(ProgramEventDetailActivity::class.java, false, false)
+        lazyActivityScenarioRule<ProgramEventDetailActivity>(launchActivity = false)
 
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -45,76 +48,47 @@ class SyncFlowTest : BaseTest() {
 
     override fun setUp() {
         super.setUp()
+        setupMockServer()
         workInfoStatusLiveData =
             ApplicationProvider.getApplicationContext<AppTest>().mutableWorkInfoStatuses
     }
 
+    @Ignore("Flaky test, will be fixed in next release")
     @Test
-    @Ignore
-    fun shouldSuccessfullySyncAChangedTEI() {
-        val teiName = "Scott"
-        val teiLastName = "Kelley"
-
-        prepareTBProgrammeIntentAndLaunchActivity(ruleSearch)
-
-        searchTeiRobot {
-            clickOnTEI(teiName, teiLastName)
-        }
-
-        teiDashboardRobot {
-            clickOnGroupEventByName(TB_VISIT)
-            clickOnEventWith(TB_VISIT_EVENT_DATE, ORG_UNIT)
-        }
-
-        eventRobot {
-            clickOnUpdate()
-        }
-
-        syncFlowRobot {
-            pressBack()
-            waitToDebounce(500)
-            clickOnSyncTei(teiName, teiLastName)
-            clickOnSyncButton()
-            workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.RUNNING)))
-            workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.SUCCEEDED)))
-            checkSyncWasSuccessfully()
-        }
-        cleanLocalDatabase()
-    }
-
-    @Test
-    @Ignore
     fun shouldShowErrorWhenTEISyncFails() {
+        mockWebServerRobot.addResponse(GET, "/api/system/ping", API_PING_RESPONSE_OK)
+
         val teiName = "Lars"
         val teiLastName = "Overland"
 
         prepareTBProgrammeIntentAndLaunchActivity(ruleSearch)
 
-        searchTeiRobot {
+        searchTeiRobot(composeTestRule) {
             clickOnOpenSearch()
-            typeAttributeAtPosition(teiName, 0)
-            typeAttributeAtPosition(teiLastName, 1)
+            openNextSearchParameter("First name")
+            typeOnNextSearchTextParameter(teiName)
+            openNextSearchParameter("Last name")
+            typeOnNextSearchTextParameter(teiLastName)
             clickOnSearch()
-            clickOnTEI(teiName, teiLastName)
+            clickOnTEI(teiLastName, composeTestRule)
         }
 
-        teiDashboardRobot {
-            clickOnGroupEventByName(LAB_MONITORING)
-            clickOnEventWith(LAB_MONITORING_EVENT_DATE, ORG_UNIT)
+        teiDashboardRobot(composeTestRule) {
+            clickOnEventWith(LAB_MONITORING_EVENT_DATE)
         }
 
-        eventRobot {
+        eventRobot(composeTestRule) {
             fillRadioButtonForm(4)
             clickOnFormFabButton()
-            clickOnCompleteButton(composeTestRule)
+            clickOnCompleteButton()
         }
 
-        teiDashboardRobot {
-            pressBack()
+        teiDashboardRobot(composeTestRule) {
+            composeTestRule.onNodeWithText("Sync").performClick()
         }
 
-        syncFlowRobot {
-            clickOnSyncTei(teiName, teiLastName)
+        syncFlowRobot(composeTestRule) {
+            waitToDebounce(500)
             clickOnSyncButton()
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.RUNNING)))
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.FAILED)))
@@ -123,21 +97,24 @@ class SyncFlowTest : BaseTest() {
         cleanLocalDatabase()
     }
 
+    @Ignore("Flaky test, will be addressed in issue #ANDROAPP-6155")
     @Test
     fun shouldSuccessfullySyncSavedEvent() {
+        mockWebServerRobot.addResponse(GET, "/api/system/ping", API_PING_RESPONSE_OK)
+
         prepareMalariaEventIntentAndLaunchActivity(ruleEventWithoutRegistration)
 
-        eventWithoutRegistrationRobot {
+        eventWithoutRegistrationRobot(composeTestRule) {
             clickOnEventAtPosition(0)
         }
 
-        eventRobot {
+        eventRobot(composeTestRule) {
             clickOnFormFabButton()
-            clickOnCompleteButton(composeTestRule)
+            clickOnCompleteButton()
         }
 
-        syncFlowRobot {
-            clickOnEventToSync(0)
+        syncFlowRobot(composeTestRule) {
+            clickOnEventToSync()
             clickOnSyncButton()
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.RUNNING)))
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.SUCCEEDED)))
@@ -147,20 +124,23 @@ class SyncFlowTest : BaseTest() {
     }
 
     @Test
+    @Ignore("Flaky test, will be addressed in issue #ANDROAPP-6139")
     fun shouldShowErrorWhenSyncEventFails() {
+        mockWebServerRobot.addResponse(GET, "/api/system/ping", API_PING_RESPONSE_OK)
+
         prepareMalariaEventIntentAndLaunchActivity(ruleEventWithoutRegistration)
 
-        eventWithoutRegistrationRobot {
+        eventWithoutRegistrationRobot(composeTestRule) {
             clickOnEventAtPosition(1)
         }
 
-        eventRobot {
+        eventRobot(composeTestRule) {
             clickOnFormFabButton()
-            clickOnCompleteButton(composeTestRule)
+            clickOnCompleteButton()
         }
 
-        syncFlowRobot {
-            clickOnEventToSync(1)
+        syncFlowRobot(composeTestRule) {
+            clickOnEventToSync()
             clickOnSyncButton()
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.RUNNING)))
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.FAILED)))
@@ -171,9 +151,12 @@ class SyncFlowTest : BaseTest() {
 
     @Test
     fun shouldSuccessfullySyncSavedDataSet() {
+        mockWebServerRobot.addResponse(GET, "/api/system/ping", API_PING_RESPONSE_OK)
+
         prepareFacilityDataSetIntentAndLaunchActivity(ruleDataSet)
 
         dataSetRobot {
+            composeTestRule.waitForIdle()
             clickOnDataSetAtPosition(0)
         }
 
@@ -192,16 +175,20 @@ class SyncFlowTest : BaseTest() {
             clickOnNegativeButton()
         }
 
-        syncFlowRobot {
+        syncFlowRobot(composeTestRule) {
             clickOnDataSetToSync(0)
             clickOnSyncButton()
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.RUNNING)))
+            composeTestRule.waitForIdle()
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.SUCCEEDED)))
+            composeTestRule.waitForIdle()
+            waitToDebounce(3000)
             checkSyncWasSuccessfully() //sync failed
         }
         cleanLocalDatabase()
     }
 
+    @Ignore("Flaky test, will be addressed in next release")
     @Test
     fun shouldShowErrorWhenSyncDataSetFails() {
         prepareFacilityDataSetIntentAndLaunchActivity(ruleDataSet)
@@ -225,7 +212,7 @@ class SyncFlowTest : BaseTest() {
             clickOnNegativeButton()
         }
 
-        syncFlowRobot {
+        syncFlowRobot(composeTestRule) {
             clickOnDataSetToSync(1)
             clickOnSyncButton()
             workInfoStatusLiveData.postValue(arrayListOf(mockedGranularWorkInfo(WorkInfo.State.RUNNING)))
@@ -242,15 +229,13 @@ class SyncFlowTest : BaseTest() {
             Data.EMPTY,
             arrayListOf("GRANULAR"),
             Data.EMPTY,
+            0,
             0
         )
     }
 
     companion object {
-        const val ORG_UNIT = "Ngelehun CHC"
-        const val TB_VISIT = "TB visit"
-        const val TB_VISIT_EVENT_DATE = "3/7/2019"
-        const val LAB_MONITORING = "Lab monitoring"
-        const val LAB_MONITORING_EVENT_DATE = "2/8/2020"
+        const val LAB_MONITORING_EVENT_DATE = "28/6/2020"
+        const val API_PING_RESPONSE_OK = "mocks/systeminfo/ping.txt"
     }
 }

@@ -1,13 +1,29 @@
 package org.dhis2.usescases.datasets.datasetDetail.datasetList
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
+import com.google.android.material.card.MaterialCardView
+import org.dhis2.R
 import org.dhis2.databinding.ItemDatasetBinding
 import org.dhis2.usescases.datasets.datasetDetail.DataSetDetailModel
+import org.dhis2.usescases.datasets.datasetDetail.datasetList.mapper.DatasetCardMapper
+import org.hisp.dhis.mobile.ui.designsystem.component.ListCard
+import org.hisp.dhis.mobile.ui.designsystem.component.ListCardTitleModel
+import org.hisp.dhis.mobile.ui.designsystem.theme.Spacing
 
-class DataSetListAdapter(val viewModel: DataSetListViewModel) :
+class DataSetListAdapter(
+    val viewModel: DataSetListViewModel,
+    private val cardMapper: DatasetCardMapper,
+) :
     ListAdapter<DataSetDetailModel, DataSetListViewHolder>(ItemDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DataSetListViewHolder {
@@ -17,21 +33,67 @@ class DataSetListAdapter(val viewModel: DataSetListViewModel) :
     }
 
     override fun onBindViewHolder(holder: DataSetListViewHolder, position: Int) {
-        holder.bind(getItem(position), viewModel)
+        getItem(position)?.let {
+            val materialCardView =
+                holder.itemView.findViewById<MaterialCardView>(R.id.cardView)
+            materialCardView.visibility = View.GONE
+            val composeView = holder.itemView.findViewById<ComposeView>(R.id.composeView)
+            composeView.setContent {
+                val card = cardMapper.map(
+                    dataset = it,
+                    editable = viewModel.isEditable(
+                        datasetUid = it.datasetUid(),
+                        periodId = it.periodId(),
+                        organisationUnitUid = it.orgUnitUid(),
+                        attributeOptionComboUid = it.catOptionComboUid(),
+                    ),
+                    onSyncIconClick = {
+                        viewModel.syncDataSet(it)
+                    },
+                    onCardCLick = {
+                        viewModel.openDataSet(it)
+                    },
+                )
+                Column(
+                    modifier = Modifier
+                        .padding(
+                            start = Spacing.Spacing8,
+                            end = Spacing.Spacing8,
+                            bottom = Spacing.Spacing4,
+                        ),
+                ) {
+                    if (position == 0) {
+                        Spacer(modifier = Modifier.size(Spacing.Spacing8))
+                    }
+                    ListCard(
+                        listAvatar = card.avatar,
+                        title = ListCardTitleModel(text = card.title),
+                        lastUpdated = card.lastUpdated,
+                        additionalInfoList = card.additionalInfo,
+                        actionButton = card.actionButton,
+                        expandLabelText = card.expandLabelText,
+                        shrinkLabelText = card.shrinkLabelText,
+                        onCardClick = card.onCardCLick,
+                    )
+                }
+            }
+
+            holder.bind(it, viewModel)
+        }
     }
 }
 
 class ItemDiffCallback : DiffUtil.ItemCallback<DataSetDetailModel>() {
     override fun areItemsTheSame(
         oldItem: DataSetDetailModel,
-        newItem: DataSetDetailModel
+        newItem: DataSetDetailModel,
     ): Boolean {
         return oldItem == newItem
     }
 
     override fun areContentsTheSame(
         oldItem: DataSetDetailModel,
-        newItem: DataSetDetailModel
+        newItem: DataSetDetailModel,
     ): Boolean {
         return oldItem == newItem
     }

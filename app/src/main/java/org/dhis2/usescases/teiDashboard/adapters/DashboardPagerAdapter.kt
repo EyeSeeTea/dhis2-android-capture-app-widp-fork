@@ -19,7 +19,7 @@ class DashboardPagerAdapter(
     private val teiUid: String,
     private val enrollmentUid: String?,
     private val displayAnalyticScreen: Boolean = true,
-    private val displayRelationshipScreen: Boolean
+    private val displayRelationshipScreen: Boolean,
 ) : FragmentStateAdapter(fragmentActivity) {
 
     enum class DashboardPageType {
@@ -51,7 +51,7 @@ class DashboardPagerAdapter(
                 landscapePages[position]
             } else {
                 portraitPages[position]
-            }
+            },
         )
     }
 
@@ -60,7 +60,7 @@ class DashboardPagerAdapter(
             DashboardPageType.TEI_DETAIL -> TEIDataFragment.newInstance(
                 currentProgram,
                 teiUid,
-                enrollmentUid
+                enrollmentUid,
             )
             DashboardPageType.ANALYTICS -> {
                 if (indicatorsFragment == null) {
@@ -79,7 +79,7 @@ class DashboardPagerAdapter(
                             currentProgram,
                             teiUid,
                             enrollmentUid,
-                            null
+                            null,
                         )
                     }
                 }
@@ -98,7 +98,6 @@ class DashboardPagerAdapter(
             R.id.navigation_analytics -> DashboardPageType.ANALYTICS
             R.id.navigation_relationships -> DashboardPageType.RELATIONSHIPS
             R.id.navigation_notes -> DashboardPageType.NOTES
-            R.id.navigation_events -> null
             else -> null
         }
 

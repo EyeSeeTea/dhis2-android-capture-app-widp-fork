@@ -9,7 +9,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.shrinkOut
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement.Absolute.spacedBy
@@ -38,6 +37,8 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -65,19 +66,26 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.dhis2.R
+import org.dhis2.commons.resources.ColorType
 import org.dhis2.commons.resources.ColorUtils
+import org.dhis2.commons.ui.icons.toIconData
 import org.dhis2.data.service.SyncStatusData
 import org.dhis2.ui.MetadataIcon
 import org.dhis2.ui.MetadataIconData
+import org.dhis2.ui.toColor
 import org.hisp.dhis.android.core.common.State
+import org.hisp.dhis.mobile.ui.designsystem.component.InfoBar
+import org.hisp.dhis.mobile.ui.designsystem.component.InfoBarData
+import org.hisp.dhis.mobile.ui.designsystem.component.internal.ImageCardData
+import org.hisp.dhis.mobile.ui.designsystem.theme.Spacing
+import org.hisp.dhis.mobile.ui.designsystem.theme.SurfaceColor
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
 fun ProgramList(
-    programs: List<ProgramViewModel>,
+    programs: List<ProgramViewModel>?,
     onItemClick: (programViewModel: ProgramViewModel) -> Unit,
     onGranularSyncClick: (programViewModel: ProgramViewModel) -> Unit,
-    downLoadState: SyncStatusData?
+    downLoadState: SyncStatusData?,
 ) {
     val conf = LocalConfiguration.current
     Column {
@@ -88,52 +96,59 @@ fun ProgramList(
                 animationSpec = tween(
                     easing = {
                         OvershootInterpolator().getInterpolation(it)
-                    }
-                )
+                    },
+                ),
             ),
-            exit = shrinkOut(shrinkTowards = Alignment.Center)
+            exit = shrinkOut(shrinkTowards = Alignment.Center),
         ) {
             DownloadMedia()
         }
 
-        when (conf.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE ->
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(bottom = 56.dp)
-                ) {
-                    items(items = programs) { program ->
-                        ProgramItem(
-                            programViewModel = program,
-                            onItemClick = onItemClick,
-                            onGranularSyncClick = onGranularSyncClick
-                        )
-                        Divider(
-                            color = colorResource(id = R.color.divider_bg),
-                            thickness = 1.dp,
-                            startIndent = 72.dp
-                        )
+        programs?.let {
+            if (programs.isEmpty()) {
+                NoAccessMessage()
+            }
+
+            when (conf.orientation) {
+                Configuration.ORIENTATION_LANDSCAPE ->
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(bottom = 56.dp),
+                    ) {
+                        items(items = programs) { program ->
+                            ProgramItem(
+                                programViewModel = program,
+                                onItemClick = onItemClick,
+                                onGranularSyncClick = onGranularSyncClick,
+                            )
+                            Divider(
+                                color = colorResource(id = R.color.divider_bg),
+                                thickness = 1.dp,
+                                startIndent = 72.dp,
+                            )
+                        }
                     }
-                }
-            else ->
-                LazyColumn(
-                    modifier = Modifier.testTag(HOME_ITEMS),
-                    contentPadding = PaddingValues(bottom = 56.dp)
-                ) {
-                    itemsIndexed(items = programs) { index, program ->
-                        ProgramItem(
-                            modifier = Modifier.semantics { testTag = HOME_ITEM.format(index) },
-                            programViewModel = program,
-                            onItemClick = onItemClick,
-                            onGranularSyncClick = onGranularSyncClick
-                        )
-                        Divider(
-                            color = colorResource(id = R.color.divider_bg),
-                            thickness = 1.dp,
-                            startIndent = 72.dp
-                        )
+
+                else ->
+                    LazyColumn(
+                        modifier = Modifier.testTag(HOME_ITEMS),
+                        contentPadding = PaddingValues(bottom = 56.dp),
+                    ) {
+                        itemsIndexed(items = programs) { index, program ->
+                            ProgramItem(
+                                modifier = Modifier.semantics { testTag = HOME_ITEM.format(index) },
+                                programViewModel = program,
+                                onItemClick = onItemClick,
+                                onGranularSyncClick = onGranularSyncClick,
+                            )
+                            Divider(
+                                color = colorResource(id = R.color.divider_bg),
+                                thickness = 1.dp,
+                                startIndent = 72.dp,
+                            )
+                        }
                     }
-                }
+            }
         }
     }
 }
@@ -143,7 +158,7 @@ fun ProgramItem(
     modifier: Modifier = Modifier,
     programViewModel: ProgramViewModel,
     onItemClick: (programViewModel: ProgramViewModel) -> Unit = {},
-    onGranularSyncClick: (programViewModel: ProgramViewModel) -> Unit = {}
+    onGranularSyncClick: (programViewModel: ProgramViewModel) -> Unit = {},
 ) {
     Row(
         modifier = modifier
@@ -153,15 +168,15 @@ fun ProgramItem(
             }
             .background(color = Color.White)
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            contentAlignment = Alignment.BottomEnd
+            contentAlignment = Alignment.BottomEnd,
         ) {
             MetadataIcon(
-                modifier = Modifier.alpha(programViewModel.getAlphaValue()),
-                metadataIconData = programViewModel.metadataIconData
+                metadataIconData = programViewModel.metadataIconData,
             )
+
             var openDescriptionDialog by remember {
                 mutableStateOf(false) // Initially dialog is closed
             }
@@ -183,15 +198,15 @@ fun ProgramItem(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .alpha(programViewModel.getAlphaValue())
+                .alpha(programViewModel.getAlphaValue()),
         ) {
             Text(
                 text = programViewModel.title,
                 color = colorResource(id = R.color.textPrimary),
                 fontSize = 14.sp,
                 style = LocalTextStyle.current.copy(
-                    fontFamily = FontFamily(Font(R.font.rubik_regular))
-                )
+                    fontFamily = FontFamily(Font(R.font.rubik_regular)),
+                ),
             )
             Text(
                 text = if (programViewModel.downloadState == ProgramDownloadState.DOWNLOADING) {
@@ -202,8 +217,8 @@ fun ProgramItem(
                 color = colorResource(id = R.color.textSecondary),
                 fontSize = 12.sp,
                 style = LocalTextStyle.current.copy(
-                    fontFamily = FontFamily(Font(R.font.rubik_regular))
-                )
+                    fontFamily = FontFamily(Font(R.font.rubik_regular)),
+                ),
             )
         }
 
@@ -213,6 +228,7 @@ fun ProgramItem(
             ProgramDownloadState.NONE -> StateIcon(programViewModel.state) {
                 onGranularSyncClick(programViewModel)
             }
+
             ProgramDownloadState.ERROR -> DownloadErrorIcon {
                 onGranularSyncClick(programViewModel)
             }
@@ -222,7 +238,7 @@ fun ProgramItem(
             Icon(
                 painter = painterResource(id = R.drawable.ic_overdue),
                 contentDescription = "Overdue",
-                tint = Color.Unspecified
+                tint = Color.Unspecified,
             )
         }
     }
@@ -232,29 +248,11 @@ fun ProgramItem(
 fun StateIcon(state: State, onClick: () -> Unit) {
     if (state != State.RELATIONSHIP && state != State.SYNCED) {
         IconButton(onClick = onClick) {
+            val (iconResource, tintColor) = state.toIconData()
             Icon(
-                imageVector = when (state) {
-                    State.TO_POST,
-                    State.TO_UPDATE,
-                    State.UPLOADING ->
-                        ImageVector.vectorResource(id = R.drawable.ic_sync_problem_grey)
-                    State.ERROR -> ImageVector.vectorResource(id = R.drawable.ic_sync_problem_red)
-                    State.WARNING -> ImageVector.vectorResource(id = R.drawable.ic_sync_warning)
-                    State.SENT_VIA_SMS,
-                    State.SYNCED_VIA_SMS -> ImageVector.vectorResource(id = R.drawable.ic_sync_sms)
-                    else -> ImageVector.vectorResource(id = R.drawable.ic_status_synced)
-                },
-                tint = when (state) {
-                    State.TO_POST,
-                    State.TO_UPDATE,
-                    State.UPLOADING -> Color(android.graphics.Color.parseColor("#333333"))
-                    State.ERROR -> Color(android.graphics.Color.parseColor("#E91E63"))
-                    State.WARNING -> Color(android.graphics.Color.parseColor("#FF9800"))
-                    State.SENT_VIA_SMS,
-                    State.SYNCED_VIA_SMS -> Color(android.graphics.Color.parseColor("#03A9F4"))
-                    else -> Color(android.graphics.Color.parseColor("#4CAF50"))
-                },
-                contentDescription = "sync"
+                imageVector = iconResource,
+                tint = tintColor,
+                contentDescription = "sync",
             )
         }
     }
@@ -267,9 +265,9 @@ fun DownloadingProgress() {
             .size(24.dp)
             .padding(2.dp),
         color = Color(
-            ColorUtils.getPrimaryColor(LocalContext.current, ColorUtils.ColorType.PRIMARY)
+            ColorUtils().getPrimaryColor(LocalContext.current, ColorType.PRIMARY),
         ),
-        strokeWidth = 2.dp
+        strokeWidth = 2.dp,
     )
 }
 
@@ -284,15 +282,15 @@ fun DownloadedIcon(programViewModel: ProgramViewModel) {
             animationSpec = tween(
                 easing = {
                     OvershootInterpolator().getInterpolation(it)
-                }
-            )
+                },
+            ),
         ),
-        exit = shrinkOut(shrinkTowards = Alignment.Center)
+        exit = shrinkOut(shrinkTowards = Alignment.Center),
     ) {
         Icon(
             painter = painterResource(id = R.drawable.ic_download_done),
             contentDescription = "downloaded",
-            tint = Color.Unspecified
+            tint = Color.Unspecified,
         )
     }
 }
@@ -303,7 +301,7 @@ fun DownloadErrorIcon(onClick: () -> Unit) {
         modifier = Modifier.clickable { onClick() },
         painter = painterResource(id = R.drawable.ic_download_error),
         contentDescription = "download error",
-        tint = Color.Unspecified
+        tint = Color.Unspecified,
     )
 }
 
@@ -331,11 +329,11 @@ fun ProgramDescriptionIcon(onClick: () -> Unit) {
                     topStart = 15.dp,
                     topEnd = 10.dp,
                     bottomEnd = 4.dp,
-                    bottomStart = 15.dp
-                )
+                    bottomStart = 15.dp,
+                ),
             )
             .background(Color.White)
-            .clickable { onClick() }
+            .clickable { onClick() },
     ) {
         Icon(
             modifier = Modifier
@@ -343,7 +341,7 @@ fun ProgramDescriptionIcon(onClick: () -> Unit) {
                 .padding(1.dp),
             painter = painterResource(id = R.drawable.ic_info),
             contentDescription = stringResource(id = R.string.program_description),
-            tint = Color.Unspecified
+            tint = Color.Unspecified,
         )
     }
 }
@@ -360,14 +358,14 @@ fun ProgramDescriptionDialog(description: String, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                onClick = { onDismiss() }
+                onClick = { onDismiss() },
             ) {
                 Text(
                     text = stringResource(id = R.string.action_close).uppercase(),
-                    color = colorResource(id = R.color.black_de0)
+                    color = colorResource(id = R.color.black_de0),
                 )
             }
-        }
+        },
     )
 }
 
@@ -375,7 +373,7 @@ fun ProgramDescriptionDialog(description: String, onDismiss: () -> Unit) {
 @Preview
 fun DownloadMedia() {
     Box(
-        modifier = Modifier.padding(vertical = 16.dp)
+        modifier = Modifier.padding(vertical = 16.dp),
     ) {
         Card(
             modifier = Modifier
@@ -384,24 +382,24 @@ fun DownloadMedia() {
                 .padding(horizontal = 16.dp),
             elevation = 13.dp,
             backgroundColor = Color.White,
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     imageVector = ImageVector.vectorResource(id = R.drawable.ic_perm_media),
-                    contentDescription = ""
+                    contentDescription = "",
                 )
                 Text(
                     modifier = Modifier.weight(1f),
                     text = stringResource(R.string.downloading_image_resources),
                     style = LocalTextStyle.current.copy(
                         color = Color.Black.copy(alpha = 0.87f),
-                        fontFamily = FontFamily(Font(R.font.rubik_regular))
-                    )
+                        fontFamily = FontFamily(Font(R.font.rubik_regular)),
+                    ),
                 )
                 DownloadingProgress()
             }
@@ -409,11 +407,31 @@ fun DownloadMedia() {
     }
 }
 
+@Composable
+@Preview
+fun NoAccessMessage() {
+    InfoBar(
+        modifier = Modifier.padding(Spacing.Spacing16),
+        infoBarData = InfoBarData(
+            text = stringResource(id = R.string.no_data_access),
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.ErrorOutline,
+                    contentDescription = "error",
+                    tint = SurfaceColor.Warning,
+                )
+            },
+            color = SurfaceColor.Warning,
+            backgroundColor = SurfaceColor.WarningContainer,
+        ),
+    )
+}
+
 @Preview
 @Composable
 fun ProgramTest() {
     ProgramItem(
-        programViewModel = testingProgramModel()
+        programViewModel = testingProgramModel(),
     )
 }
 
@@ -421,7 +439,7 @@ fun ProgramTest() {
 @Composable
 fun ProgramTestToPost() {
     ProgramItem(
-        programViewModel = testingProgramModel().copy(state = State.TO_POST)
+        programViewModel = testingProgramModel().copy(state = State.TO_POST),
     )
 }
 
@@ -429,7 +447,7 @@ fun ProgramTestToPost() {
 @Composable
 fun ProgramTestWithDescription() {
     ProgramItem(
-        programViewModel = testingProgramModel().copy(description = "Program description")
+        programViewModel = testingProgramModel().copy(description = "Program description"),
     )
 }
 
@@ -447,7 +465,7 @@ fun ProgramTestDownloaded() {
             } else {
                 ProgramDownloadState.DOWNLOADING
             }
-        }
+        },
     )
 }
 
@@ -462,11 +480,11 @@ fun ListPreview() {
             testingProgramModel().copy(state = State.TO_POST),
             testingProgramModel().copy(state = State.TO_UPDATE),
             testingProgramModel().copy(state = State.SYNCED_VIA_SMS),
-            testingProgramModel().copy(state = State.SENT_VIA_SMS)
+            testingProgramModel().copy(state = State.SENT_VIA_SMS),
         ),
         onItemClick = {},
         onGranularSyncClick = {},
-        downLoadState = SyncStatusData(true, true, emptyMap())
+        downLoadState = SyncStatusData(true, true, emptyMap()),
     )
 }
 
@@ -480,8 +498,13 @@ private fun testingProgramModel() = ProgramViewModel(
     uid = "qweqwe",
     title = "Program title",
     metadataIconData = MetadataIconData(
-        programColor = android.graphics.Color.parseColor("#00BCD4"),
-        iconResource = R.drawable.ic_positive_negative
+        imageCardData = ImageCardData.IconCardData(
+            uid = "",
+            label = "",
+            iconRes = "ic_positive_negative",
+            iconTint = "#00BCD4".toColor(),
+        ),
+        color = "#00BCD4".toColor(),
     ),
     count = 12,
     type = "type",
@@ -493,7 +516,8 @@ private fun testingProgramModel() = ProgramViewModel(
     state = State.SYNCED,
     hasOverdueEvent = true,
     false,
-    downloadState = ProgramDownloadState.NONE
+    downloadState = ProgramDownloadState.NONE,
+    stockConfig = null,
 )
 
 const val HOME_ITEMS = "HOME_ITEMS"

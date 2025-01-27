@@ -4,27 +4,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.BottomSheetScaffold
 import androidx.compose.material.BottomSheetValue
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.rememberBottomSheetScaffoldState
 import androidx.compose.material.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.dhis2.composetable.actions.TableInteractions
-import org.dhis2.composetable.activity.TableTestActivity
+import org.dhis2.composetable.actions.TextInputInteractions
 import org.dhis2.composetable.data.input_error_message
 import org.dhis2.composetable.data.tableData
 import org.dhis2.composetable.model.FakeModelType
 import org.dhis2.composetable.model.TableCell
 import org.dhis2.composetable.model.TextInputModel
 import org.dhis2.composetable.tableRobot
+import org.dhis2.composetable.ui.compositions.LocalInteraction
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +34,7 @@ import org.junit.Test
 class TextInputUiTest {
 
     @get:Rule
-    val composeTestRule = createAndroidComposeRule<TableTestActivity>()
+    val composeTestRule = createComposeRule()
 
     @Test
     fun validateTextInputRequirements() {
@@ -40,13 +42,12 @@ class TextInputUiTest {
         val expectedValue = "55"
 
         tableRobot(composeTestRule) {
-           val fakeModels = initTableAppScreen(
-                composeTestRule.activity.applicationContext,
+            val fakeModels = initTableAppScreen(
                 FakeModelType.MULTIHEADER_TABLE,
                 onSave = { cellToSave = it }
             )
             val tableId = fakeModels[0].id!!
-            assertClickOnCellShouldOpenInputComponent(tableId,0, 0)
+            assertClickOnCellShouldOpenInputComponent(tableId, 0, 0)
             assertClickOnBackClearsFocus()
             assertClickOnEditOpensInputKeyboard()
             assertClickOnSaveHidesKeyboardAndSaveValue(expectedValue)
@@ -65,12 +66,11 @@ class TextInputUiTest {
         }
     }
 
-    @Ignore("It is not deterministic, to fix on https://dhis2.atlassian.net/browse/ANDROAPP-4987")
+    @Ignore("Flaky test, to be resolved in a separate ticket")
     @Test
     fun shouldClearFocusWhenKeyboardIsHidden() {
         tableRobot(composeTestRule) {
             val fakeModels = initTableAppScreen(
-                composeTestRule.activity.applicationContext,
                 FakeModelType.MANDATORY_TABLE
             )
             clickOnCell(fakeModels.first().id!!, 0, 0)
@@ -79,9 +79,26 @@ class TextInputUiTest {
         }
     }
 
+    @Test
+    fun shouldDisplayHelperText() {
+        val helperText = "This is a helper Text"
+
+        tableRobot(composeTestRule) {
+            val fakeModels = initTableAppScreen(
+                FakeModelType.MANDATORY_TABLE,
+                helperText = helperText
+            )
+            clickOnCell(fakeModels.first().id!!, 0, 0)
+            assertInputComponentHelperTextIsDisplayed(helperText)
+        }
+    }
+
     @OptIn(ExperimentalMaterialApi::class)
     @Composable
-    private fun TextInputUiTestScreen(onSave: (TableCell) -> Unit) {
+    private fun TextInputUiTestScreen(
+        helperText: String? = null,
+        onSave: (TableCell) -> Unit
+    ) {
         val bottomSheetState = rememberBottomSheetScaffoldState(
             bottomSheetState = rememberBottomSheetState(initialValue = BottomSheetValue.Collapsed)
         )
@@ -92,7 +109,9 @@ class TextInputUiTest {
         }
         var currentInputType by remember {
             mutableStateOf(
-                TextInputModel()
+                TextInputModel(
+                    helperText = helperText
+                )
             )
         }
 
@@ -105,17 +124,28 @@ class TextInputUiTest {
         BottomSheetScaffold(
             scaffoldState = bottomSheetState,
             sheetContent = {
+                val textInputInteractions by remember(tableData) {
+                    derivedStateOf {
+                        object : TextInputInteractions {
+                            override fun onTextChanged(inputModel: TextInputModel) {
+                                currentInputType = inputModel
+                                currentCell = currentCell?.copy(
+                                    value = inputModel.currentValue,
+                                    error = null
+                                )
+                            }
+
+                            override fun onSave() {
+                                currentCell?.let { onSave(it) }
+                            }
+
+
+                        }
+                    }
+                }
                 TextInput(
                     textInputModel = currentInputType,
-                    onTextChanged = { textInputModel ->
-                        currentInputType = textInputModel
-                        currentCell = currentCell?.copy(
-                            value = textInputModel.currentValue,
-                            error = null
-                        )
-                    },
-                    onSave = { currentCell?.let { onSave(it) } },
-                    onNextSelected = {},
+                    textInputInteractions = textInputInteractions,
                     focusRequester = FocusRequester()
                 )
             },
@@ -125,35 +155,37 @@ class TextInputUiTest {
                 topEnd = 16.dp
             )
         ) {
-            DataTable(
-                tableList = tableData,
-                tableColors = TableColors(
-                    primary = MaterialTheme.colors.primary,
-                    primaryLight = MaterialTheme.colors.primary.copy(alpha = 0.2f)
-                ),
-                tableSelection = tableSelection,
-                tableInteractions = object : TableInteractions {
-                    override fun onSelectionChange(newTableSelection: TableSelection) {
-                        tableSelection = newTableSelection
-                    }
 
-                    override fun onClick(tableCell: TableCell) {
-                        currentCell = tableCell
-                        currentInputType = TextInputModel(
-                            id = tableCell.id!!,
-                            mainLabel = "Main Label",
-                            secondaryLabels = listOf("Second Label 1", "Second Label 2"),
-                            tableCell.value,
-                            error = currentCell?.error
-                        )
-                        coroutineScope.launch {
-                            if (bottomSheetState.bottomSheetState.isCollapsed) {
-                                bottomSheetState.bottomSheetState.expand()
-                            }
+            val iteractions = object : TableInteractions {
+                override fun onSelectionChange(newTableSelection: TableSelection) {
+                    tableSelection = newTableSelection
+                }
+
+                override fun onClick(tableCell: TableCell) {
+                    currentCell = tableCell
+                    currentInputType = TextInputModel(
+                        id = tableCell.id!!,
+                        mainLabel = "Main Label",
+                        secondaryLabels = listOf("Second Label 1", "Second Label 2"),
+                        tableCell.value,
+                        error = currentCell?.error
+                    )
+                    coroutineScope.launch {
+                        if (bottomSheetState.bottomSheetState.isCollapsed) {
+                            bottomSheetState.bottomSheetState.expand()
                         }
                     }
                 }
-            )
+            }
+
+            CompositionLocalProvider(
+                LocalTableSelection provides tableSelection,
+                LocalInteraction provides iteractions
+            ) {
+                DataTable(
+                    tableList = tableData
+                )
+            }
         }
     }
 }

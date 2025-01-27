@@ -1,6 +1,10 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventCapture.eventCaptureFragment;
 
+import static org.dhis2.commons.Constants.EVENT_MODE;
 import static org.dhis2.commons.extensions.ViewExtensionsKt.closeKeyboard;
+import static org.dhis2.form.data.EventRepository.EVENT_ORG_UNIT_UID;
+import static org.dhis2.usescases.eventsWithoutRegistration.eventCapture.ui.NonEditableReasonBlockKt.showNonEditableReasonMessage;
+import static org.dhis2.utils.granularsync.SyncStatusDialogNavigatorKt.OPEN_ERROR_LOCATION;
 
 import android.content.Context;
 import android.content.Intent;
@@ -16,11 +20,18 @@ import androidx.fragment.app.FragmentTransaction;
 
 import org.dhis2.R;
 import org.dhis2.commons.Constants;
+import org.dhis2.commons.featureconfig.data.FeatureConfigRepository;
+import org.dhis2.commons.featureconfig.model.Feature;
 import org.dhis2.databinding.SectionSelectorFragmentBinding;
+import org.dhis2.form.model.ActionType;
+import org.dhis2.form.model.EventMode;
 import org.dhis2.form.model.EventRecords;
 import org.dhis2.form.ui.FormView;
+import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureAction;
 import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureActivity;
+import org.dhis2.usescases.eventsWithoutRegistration.eventCapture.EventCaptureContract;
 import org.dhis2.usescases.general.FragmentGlobalAbstract;
+import org.hisp.dhis.android.core.common.ValueType;
 import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
@@ -33,14 +44,23 @@ public class EventCaptureFormFragment extends FragmentGlobalAbstract implements 
     @Inject
     EventCaptureFormPresenter presenter;
 
+    @Inject
+    FeatureConfigRepository featureConfig;
+
     private EventCaptureActivity activity;
     private SectionSelectorFragmentBinding binding;
     private FormView formView;
 
-    public static EventCaptureFormFragment newInstance(String eventUid) {
+    public static EventCaptureFormFragment newInstance(
+            String eventUid,
+            Boolean openErrorSection,
+            EventMode eventMode
+    ) {
         EventCaptureFormFragment fragment = new EventCaptureFormFragment();
         Bundle args = new Bundle();
         args.putString(Constants.EVENT_UID, eventUid);
+        args.putBoolean(OPEN_ERROR_LOCATION, openErrorSection);
+        args.putString(EVENT_MODE, eventMode.name());
         fragment.setArguments(args);
         return fragment;
     }
@@ -59,6 +79,15 @@ public class EventCaptureFormFragment extends FragmentGlobalAbstract implements 
 
     @Override
     public void onCreate(@Nullable @org.jetbrains.annotations.Nullable Bundle savedInstanceState) {
+        String eventUid = getArguments().getString(Constants.EVENT_UID, "");
+        EventMode eventMode = EventMode.valueOf(getArguments().getString(EVENT_MODE));
+        loadForm(eventUid, eventMode);
+
+        activity.setFormEditionListener(this);
+        super.onCreate(savedInstanceState);
+    }
+
+    private void loadForm(String eventUid, EventMode eventMode) {
         formView = new FormView.Builder()
                 .locationProvider(locationProvider)
                 .onLoadingListener(loading -> {
@@ -68,6 +97,12 @@ public class EventCaptureFormFragment extends FragmentGlobalAbstract implements 
                         activity.hideProgress();
                     }
                     return Unit.INSTANCE;
+                }).onItemChangeListener( action -> {
+                    if(action.isEventDetailsRow()){
+                        presenter.showOrHideSaveButton();
+                    }
+                    return Unit.INSTANCE;
+
                 })
                 .onFocused(() -> {
                     activity.hideNavigationBar();
@@ -79,22 +114,35 @@ public class EventCaptureFormFragment extends FragmentGlobalAbstract implements 
                 }).onItemChangeListener(rowAction ->{
                     activity.refreshProgramStageName();
                     return Unit.INSTANCE;
-                }).onDataIntegrityResult(result -> {
-                    presenter.handleDataIntegrityResult(result);
+                })
+                .onDataIntegrityResult(result -> {
+                    presenter.handleDataIntegrityResult(result, eventMode);
                     return Unit.INSTANCE;
                 })
                 .factory(activity.getSupportFragmentManager())
-                .setRecords(new EventRecords(getArguments().getString(Constants.EVENT_UID)))
+                .setRecords(new EventRecords(eventUid, eventMode))
+                .openErrorLocation(getArguments().getBoolean(OPEN_ERROR_LOCATION, false))
+                .useComposeForm(
+                        featureConfig.isFeatureEnable(Feature.COMPOSE_FORMS)
+                )
                 .build();
-        activity.setFormEditionListener(this);
-        super.onCreate(savedInstanceState);
     }
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         binding = DataBindingUtil.inflate(inflater, R.layout.section_selector_fragment, container, false);
-        binding.setPresenter(activity.getPresenter());
+        EventCaptureContract.Presenter activityPresenter = activity.getPresenter();
+        binding.setPresenter(activityPresenter);
+
+        activityPresenter.observeActions().observe(getViewLifecycleOwner(), action ->
+        {
+            if (action == EventCaptureAction.ON_BACK) {
+                formView.onSaveClick();
+                activityPresenter.emitAction(EventCaptureAction.NONE);
+            }
+        });
+
         binding.actionButton.setOnClickListener(view -> {
             closeKeyboard(view);
             performSaveClick();
@@ -155,5 +203,25 @@ public class EventCaptureFormFragment extends FragmentGlobalAbstract implements 
     @Override
     public void onReopen() {
         formView.reload();
+    }
+
+    @Override
+    public void showNonEditableMessage(@NonNull String reason, boolean canBeReOpened) {
+        binding.editableReasonContainer.setVisibility(View.VISIBLE);
+
+        showNonEditableReasonMessage(
+                binding.editableReasonContainer,
+                reason,
+                canBeReOpened,
+                () -> {
+                    presenter.reOpenEvent();
+                    return Unit.INSTANCE;
+                }
+        );
+    }
+
+    @Override
+    public void hideNonEditableMessage() {
+        binding.editableReasonContainer.setVisibility(View.GONE);
     }
 }

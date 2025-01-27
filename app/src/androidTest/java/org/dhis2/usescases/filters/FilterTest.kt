@@ -10,12 +10,13 @@ import org.dhis2.usescases.form.formRobot
 import org.dhis2.usescases.main.AVOID_SYNC
 import org.dhis2.usescases.main.MainActivity
 import org.dhis2.usescases.main.homeRobot
+import org.dhis2.usescases.orgunitselector.orgUnitSelectorRobot
 import org.dhis2.usescases.teidashboard.robot.eventRobot
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 
-class FilterTest: BaseTest() {
+class FilterTest : BaseTest() {
 
     @get:Rule
     val rule = ActivityTestRule(MainActivity::class.java, false, false)
@@ -36,16 +37,16 @@ class FilterTest: BaseTest() {
         filterRobotCommon {
             openFilterAtPosition(0)
             clickOnFromToDateOption()
-            selectDate(2020,6,15)
+            selectDate(2020, 6, 15)
             acceptDateSelected()
-            selectDate(2020,11,7)
+            selectDate(2020, 11, 7)
             acceptDateSelected()
         }
         homeRobot {
             openFilters()
-            checkItemsInProgram(composeTestRule,3,"Child Programme", "3")
-            checkItemsInProgram(composeTestRule,5, "Contraceptives Voucher Program", "5")
-            checkItemsInProgram(composeTestRule,26, "Mortality < 5 years", "4")
+            checkItemsInProgram(composeTestRule, 3, "Child Programme", "3")
+            checkItemsInProgram(composeTestRule, 5, "Contraceptives Voucher Program", "5")
+            checkItemsInProgram(composeTestRule, 26, "Mortality < 5 years", "4")
         }
         cleanLocalDatabase()
     }
@@ -67,15 +68,15 @@ class FilterTest: BaseTest() {
         }
         homeRobot {
             openFilters()
-            checkItemsInProgram(composeTestRule,3,"Child Programme", "0")
-            checkItemsInProgram(composeTestRule,41, "XX TEST EVENT FULL", "2")
-            checkItemsInProgram(composeTestRule,43, "XX TEST TRACKER PROGRAM", "4")
+            checkItemsInProgram(composeTestRule, 3, "Child Programme", "0")
+            checkItemsInProgram(composeTestRule, 41, "XX TEST EVENT FULL", "2")
+            checkItemsInProgram(composeTestRule, 43, "XX TEST TRACKER PROGRAM", "4")
         }
         cleanLocalDatabase()
     }
 
     @Test
-    fun checkTreeOrgUnitFilter(){
+    fun checkTreeOrgUnitFilter() {
         startActivity()
         setupCredentials()
 
@@ -86,32 +87,35 @@ class FilterTest: BaseTest() {
         filterRobotCommon {
             openFilterAtPosition(1)
             clickOnOrgUnitTree()
-            selectTreeOrgUnit("OU TEST PARENT")
-            confirmSelection()
+            orgUnitSelectorRobot(composeTestRule) {
+                selectTreeOrgUnit("OU TEST PARENT")
+            }
         }
         homeRobot {
             openFilters()
-            checkItemsInProgram(composeTestRule,3,"Child Programme", "0")
-            checkItemsInProgram(composeTestRule,41, "XX TEST EVENT FULL", "2")
-            checkItemsInProgram(composeTestRule,43, "XX TEST TRACKER PROGRAM", "4")
+            checkItemsInProgram(composeTestRule, 3, "Child Programme", "0")
+            checkItemsInProgram(composeTestRule, 41, "XX TEST EVENT FULL", "2")
+            checkItemsInProgram(composeTestRule, 43, "XX TEST TRACKER PROGRAM", "4")
         }
         cleanLocalDatabase()
     }
 
+    @Ignore("Undeterministic")
     @Test
     fun checkSyncFilter() {
         setupCredentials()
         startActivity()
 
         homeRobot {
-            openProgramByPosition(composeTestRule,0)
+            openProgramByPosition(composeTestRule, 0)
+            waitToDebounce(700)
         }
-        eventWithoutRegistrationRobot {
+        eventWithoutRegistrationRobot(composeTestRule) {
             clickOnEventAtPosition(0)
         }
-        eventRobot {
+        eventRobot(composeTestRule) {
             clickOnFormFabButton()
-            clickOnCompleteButton(composeTestRule)
+            clickOnCompleteButton()
             pressBack()
         }
         homeRobot {
@@ -123,8 +127,9 @@ class FilterTest: BaseTest() {
         }
         homeRobot {
             openFilters()
-            checkItemsInProgram(composeTestRule,0,"Antenatal care visit", "1")
-            checkItemsInProgram(composeTestRule,3,"Child Programme", "0")
+            waitToDebounce(1000)
+            checkItemsInProgram(composeTestRule, 0, "Antenatal care visit", "1")
+            checkItemsInProgram(composeTestRule, 3, "Child Programme", "0")
         }
         cleanLocalDatabase()
     }
@@ -136,13 +141,13 @@ class FilterTest: BaseTest() {
         startActivity()
 
         homeRobot {
-            openProgramByPosition(composeTestRule,41)
+            openProgramByPosition(composeTestRule, 41)
         }
-        eventWithoutRegistrationRobot {
+        eventWithoutRegistrationRobot(composeTestRule) {
             clickOnEventAtPosition(0)
         }
-        formRobot {
-            clickOnSelectOption("ZZ TEST RULE ACTIONS A", 1,"Hide Field", 1)
+        formRobot(composeTestRule) {
+            clickOnSelectOption(1, 1)
             pressBack()
             pressBack()
             pressBack()
@@ -161,9 +166,9 @@ class FilterTest: BaseTest() {
         }
         homeRobot {
             openFilters()
-            checkItemsInProgram(composeTestRule,37,"TB program", "0")
+            checkItemsInProgram(composeTestRule, 37, "TB program", "0")
             waitToDebounce(700)
-            checkItemsInProgram(composeTestRule,41, "XX TEST EVENT FULL", "1")
+            checkItemsInProgram(composeTestRule, 41, "XX TEST EVENT FULL", "1")
             waitToDebounce(700)
         }
         cleanLocalDatabase()

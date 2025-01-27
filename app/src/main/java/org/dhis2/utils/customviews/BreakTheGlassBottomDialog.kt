@@ -1,5 +1,6 @@
 package org.dhis2.utils.customviews
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -11,10 +12,22 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import org.dhis2.R
+import org.dhis2.commons.resources.ColorType
 import org.dhis2.commons.resources.ColorUtils
+import org.dhis2.commons.resources.ResourceManager
 import org.dhis2.databinding.BreakTheGlassBottomDialogBindingImpl
 
 class BreakTheGlassBottomDialog : BottomSheetDialogFragment() {
+
+    private lateinit var programUid: String
+
+    lateinit var resourceManager: ResourceManager
+
+    val colorUtils: ColorUtils = ColorUtils()
+
+    fun setProgram(programUid: String) = apply {
+        this.programUid = programUid
+    }
 
     fun setPositiveButton(onClick: ((String) -> Unit)? = null) = apply {
         this.positiveOnclick = onClick
@@ -28,12 +41,30 @@ class BreakTheGlassBottomDialog : BottomSheetDialogFragment() {
         isCancelable = false
     }
 
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        resourceManager = ResourceManager(
+            context,
+            colorUtils,
+        )
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
+        savedInstanceState: Bundle?,
+    ): View {
         return BreakTheGlassBottomDialogBindingImpl.inflate(inflater, container, false).apply {
+            message.text = resourceManager.formatWithEnrollmentLabel(
+                programUid,
+                R.string.break_glass_dialog_description_V2,
+                1,
+            )
+            label.text = resourceManager.formatWithEnrollmentLabel(
+                programUid,
+                R.string.break_glass_reason_V2,
+                1,
+            )
             positive.apply {
                 setOnClickListener {
                     positiveOnclick?.invoke(inputEditText.text.toString())
@@ -56,13 +87,13 @@ class BreakTheGlassBottomDialog : BottomSheetDialogFragment() {
             inputEditText.setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) {
                     val focusColor =
-                        ColorUtils.getPrimaryColor(context, ColorUtils.ColorType.PRIMARY)
+                        colorUtils.getPrimaryColor(requireContext(), ColorType.PRIMARY)
                     label.setTextColor(focusColor)
                     selectionView.setBackgroundColor(focusColor)
                 } else {
                     val unFocusColor = ContextCompat.getColor(
                         requireContext(),
-                        R.color.text_black_A63
+                        R.color.text_black_A63,
                     )
                     label.setTextColor(unFocusColor)
                     selectionView.setBackgroundColor(unFocusColor)
@@ -82,7 +113,7 @@ class BreakTheGlassBottomDialog : BottomSheetDialogFragment() {
 
             val bottomSheet =
                 dialog.findViewById<FrameLayout>(
-                    com.google.android.material.R.id.design_bottom_sheet
+                    com.google.android.material.R.id.design_bottom_sheet,
                 )
             val behavior = BottomSheetBehavior.from(bottomSheet!!)
             behavior.state = BottomSheetBehavior.STATE_EXPANDED

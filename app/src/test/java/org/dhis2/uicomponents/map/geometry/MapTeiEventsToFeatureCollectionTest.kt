@@ -2,16 +2,13 @@ package org.dhis2.uicomponents.map.geometry
 
 import com.mapbox.geojson.Feature
 import com.mapbox.geojson.Point
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
-import java.util.Date
 import org.dhis2.maps.geometry.bound.GetBoundingBox
 import org.dhis2.maps.geometry.mapper.featurecollection.MapTeiEventsToFeatureCollection
 import org.dhis2.maps.geometry.mapper.featurecollection.MapTeiEventsToFeatureCollection.Companion.EVENT_UID
 import org.dhis2.maps.geometry.point.MapPointToFeature
 import org.dhis2.maps.geometry.polygon.MapPolygonToFeature
 import org.dhis2.maps.model.EventUiComponentModel
+import org.dhis2.ui.MetadataIconData
 import org.dhis2.uicomponents.map.mocks.GeometryDummy.getGeometryAsPoint
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.MatcherAssert.assertThat
@@ -20,6 +17,10 @@ import org.hisp.dhis.android.core.event.Event
 import org.hisp.dhis.android.core.program.ProgramStage
 import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+import java.util.Date
 
 class MapTeiEventsToFeatureCollectionTest {
 
@@ -34,7 +35,7 @@ class MapTeiEventsToFeatureCollectionTest {
             MapTeiEventsToFeatureCollection(
                 mapPointToFeature,
                 mapPolygonToFeature,
-                bounds
+                bounds,
             )
     }
 
@@ -63,7 +64,7 @@ class MapTeiEventsToFeatureCollectionTest {
         val event = EventUiComponentModel(
             "eventUid",
             Event.builder().uid(EVENTUID).geometry(
-                getGeometryAsPoint("[$POINT_LONGITUDE, $POINT_LATITUDE]")
+                getGeometryAsPoint("[$POINT_LONGITUDE, $POINT_LATITUDE]"),
             ).build(),
             Enrollment.builder().uid("enrollmentUid").build(),
             ProgramStage.builder().uid("stageUid").displayName("stage").build(),
@@ -71,7 +72,8 @@ class MapTeiEventsToFeatureCollectionTest {
             linkedMapOf(),
             "image",
             "default",
-            "orgUnit"
+            "orgUnit",
+            MetadataIconData.defaultIcon(),
         )
         return listOf(event)
     }

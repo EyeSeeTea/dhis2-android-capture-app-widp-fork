@@ -1,17 +1,14 @@
 package org.dhis2.usescases.eventsWithoutRegistration.eventDetails
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.nhaarman.mockitokotlin2.doReturn
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
-import java.util.Date
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import org.dhis2.commons.data.EventCreationType
 import org.dhis2.commons.locationprovider.LocationProvider
 import org.dhis2.commons.prefs.PreferenceProvider
+import org.dhis2.commons.resources.DhisPeriodUtils
+import org.dhis2.commons.resources.MetadataIconProvider
 import org.dhis2.commons.resources.ResourceManager
-import org.dhis2.data.dhislogic.DhisPeriodUtils
 import org.dhis2.form.data.GeometryController
 import org.dhis2.form.data.GeometryParserImpl
 import org.dhis2.form.model.FieldUiModel
@@ -38,6 +35,10 @@ import org.hisp.dhis.android.core.program.ProgramStage
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
+import java.util.Date
 
 @ExperimentalCoroutinesApi
 class EventDetailsIntegrationTest {
@@ -64,6 +65,7 @@ class EventDetailsIntegrationTest {
     private val programStage: ProgramStage = mock {
         on { displayName() } doReturn PROGRAM_STAGE_NAME
         on { executionDateLabel() } doReturn EXECUTION_DATE
+        on { uid() } doReturn PROGRAM_STAGE
     }
     private val catCombo: CategoryCombo = mock {
         on { uid() } doReturn CAT_COMBO_UID
@@ -89,6 +91,8 @@ class EventDetailsIntegrationTest {
         on { getEditableStatus() } doReturn EventEditableStatus.Editable()
     }
 
+    private val metadataIconProvider: MetadataIconProvider = mock()
+
     private lateinit var viewModel: EventDetailsViewModel
 
     @Test
@@ -99,7 +103,7 @@ class EventDetailsIntegrationTest {
         // AND is completed
         viewModel = initViewModel(
             periodType = null,
-            enrollmentStatus = EnrollmentStatus.COMPLETED
+            enrollmentStatus = EnrollmentStatus.COMPLETED,
         )
 
         // When user taps on reopen
@@ -114,15 +118,15 @@ class EventDetailsIntegrationTest {
     private fun initViewModel(
         periodType: PeriodType?,
         eventCreationType: EventCreationType = EventCreationType.DEFAULT,
-        enrollmentStatus: EnrollmentStatus
+        enrollmentStatus: EnrollmentStatus,
     ) = EventDetailsViewModel(
         configureEventDetails = createConfigureEventDetails(
             eventCreationType,
-            enrollmentStatus
+            enrollmentStatus,
         ),
         configureEventReportDate = createConfigureEventReportDate(
             eventCreationType,
-            periodType
+            periodType,
         ),
         configureOrgUnit = createConfigureOrgUnit(eventCreationType),
         configureEventCoordinates = createConfigureEventCoordinates(),
@@ -133,19 +137,19 @@ class EventDetailsIntegrationTest {
         geometryController = createGeometryController(),
         locationProvider = locationProvider,
         createOrUpdateEventDetails = createOrUpdateEventDetails(),
-        resourcesProvider = provideEventResourcesProvider()
+        resourcesProvider = provideEventResourcesProvider(),
     )
 
     private fun createConfigureEventTemp(eventCreationType: EventCreationType) = ConfigureEventTemp(
-        creationType = eventCreationType
+        creationType = eventCreationType,
     )
 
     private fun createConfigureEventCatCombo() = ConfigureEventCatCombo(
-        repository = eventDetailsRepository
+        repository = eventDetailsRepository,
     )
 
     private fun createConfigureEventCoordinates() = ConfigureEventCoordinates(
-        repository = eventDetailsRepository
+        repository = eventDetailsRepository,
     )
 
     private fun createConfigureOrgUnit(eventCreationType: EventCreationType) = ConfigureOrgUnit(
@@ -153,12 +157,12 @@ class EventDetailsIntegrationTest {
         repository = eventDetailsRepository,
         preferencesProvider = preferencesProvider,
         programUid = PROGRAM_UID,
-        initialOrgUnitUid = INITIAL_ORG_UNIT_UID
+        initialOrgUnitUid = INITIAL_ORG_UNIT_UID,
     )
 
     private fun createConfigureEventReportDate(
         eventCreationType: EventCreationType,
-        periodType: PeriodType?
+        periodType: PeriodType?,
     ) = ConfigureEventReportDate(
         creationType = eventCreationType,
         resourceProvider = provideEventResourcesProvider(),
@@ -166,24 +170,25 @@ class EventDetailsIntegrationTest {
         periodType = periodType,
         periodUtils = periodUtils,
         enrollmentId = ENROLLMENT_UID,
-        scheduleInterval = 0
+        scheduleInterval = 0,
     )
 
     private fun createConfigureEventDetails(
         eventCreationType: EventCreationType,
-        enrollmentStatus: EnrollmentStatus
+        enrollmentStatus: EnrollmentStatus,
     ) = ConfigureEventDetails(
         repository = eventDetailsRepository,
         resourcesProvider = provideEventResourcesProvider(),
         creationType = eventCreationType,
-        enrollmentStatus = enrollmentStatus
+        enrollmentStatus = enrollmentStatus,
+        metadataIconProvider = metadataIconProvider,
     )
 
-    private fun provideEventResourcesProvider() = EventDetailResourcesProvider(resourceManager)
+    private fun provideEventResourcesProvider() = EventDetailResourcesProvider(PROGRAM_UID, programStage.uid(), resourceManager)
 
     private fun createOrUpdateEventDetails() = CreateOrUpdateEventDetails(
         repository = eventDetailsRepository,
-        resourcesProvider = provideEventResourcesProvider()
+        resourcesProvider = provideEventResourcesProvider(),
     )
 
     private fun createGeometryController() = GeometryController(GeometryParserImpl())
@@ -199,5 +204,6 @@ class EventDetailsIntegrationTest {
         const val COORDINATES = "coordinates"
         const val CAT_COMBO_UID = "CatComboUid"
         const val CAT_OPTION_COMBO_UID = "CategoryOptionComboUid"
+        const val PROGRAM_STAGE = "programStage"
     }
 }

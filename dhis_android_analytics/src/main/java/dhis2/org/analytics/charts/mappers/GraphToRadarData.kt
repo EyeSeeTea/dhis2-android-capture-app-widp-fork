@@ -32,7 +32,7 @@ class GraphToRadarData {
                     serie.fieldName,
                     serieToHighlight,
                     graph.series.size == 1,
-                    index
+                    index,
                 )
                 addDataSet(dataSet)
             }
@@ -48,23 +48,23 @@ class GraphToRadarData {
 
     private fun getHighlightedSeriesMaximum(
         series: List<SerieData>,
-        serieToHighlight: String?
+        serieToHighlight: String?,
     ): Float? {
         return series.find {
             it.fieldName == serieToHighlight
         }?.coordinates?.maxByOrNull {
-            it.fieldValue
-        }?.fieldValue
+            it.numericValue()
+        }?.numericValue()
     }
 
     private fun SerieData.getSerieMaximun(): Float? {
-        return coordinates.maxByOrNull { it.fieldValue }?.fieldValue
+        return coordinates.maxByOrNull { it.numericValue() }?.numericValue()
     }
 
     private fun shouldSetData(
         serieToHighlight: String?,
         serie: SerieData,
-        highlightSeriesMax: Float?
+        highlightSeriesMax: Float?,
     ): Boolean {
         val serieMax = serie.getSerieMaximun()
         return serieToHighlight == null ||
@@ -75,26 +75,24 @@ class GraphToRadarData {
     private fun setEntries(
         serieLabel: String,
         categories: List<String>,
-        coordinates: List<GraphPoint>
+        coordinates: List<GraphPoint>,
     ) = categories.mapIndexed { categoryIndex, _ ->
         val point =
             coordinates.find { it.position == categoryIndex.toFloat() }
-        RadarEntry(point?.fieldValue ?: 0f, serieLabel)
+        RadarEntry(point?.numericValue() ?: 0f, serieLabel)
     }
 
-    private fun setEmptyEntries(
-        serieLabel: String,
-        categories: List<String>
-    ) = categories.mapIndexed { _, _ ->
-        RadarEntry(0f, serieLabel)
-    }
+    private fun setEmptyEntries(serieLabel: String, categories: List<String>) =
+        categories.mapIndexed { _, _ ->
+            RadarEntry(0f, serieLabel)
+        }
 
     private fun getDataSet(
         radarEntry: List<RadarEntry>,
         serieLabel: String,
         serieToHighlight: String?,
         onlyOneSerie: Boolean,
-        serieIndex: Int
+        serieIndex: Int,
     ): RadarDataSet {
         val dataSet = RadarDataSet(radarEntry, serieLabel).apply {
             if (onlyOneSerie || label == serieToHighlight) {

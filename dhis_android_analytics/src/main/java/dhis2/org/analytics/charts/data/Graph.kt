@@ -1,8 +1,12 @@
 package dhis2.org.analytics.charts.data
 
-import java.util.Date
 import org.hisp.dhis.android.core.common.RelativePeriod
 import org.hisp.dhis.android.core.period.PeriodType
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.util.Date
 
 data class Graph(
     val title: String,
@@ -12,22 +16,51 @@ data class Graph(
     val periodStep: Long,
     val chartType: ChartType? = ChartType.LINE_CHART,
     val categories: List<String> = emptyList(),
-    val orgUnitsDefault: List<String> = emptyList(),
-    val orgUnitsSelected: List<String> = emptyList(),
-    val periodToDisplaySelected: RelativePeriod? = null,
+    val graphFilters: GraphFilters? = null,
     val visualizationUid: String? = null,
     val hasError: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
 ) {
+
+    private fun minDate() = series.filter { it.coordinates.isNotEmpty() }.minOfOrNull { serie ->
+        serie.coordinates.minOf { point -> point.eventDate }
+    }?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate() ?: LocalDate.now()
+
+    private fun maxDate() = series.filter { it.coordinates.isNotEmpty() }.maxOfOrNull { serie ->
+        serie.coordinates.maxOf { point -> point.eventDate }
+    }?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate() ?: LocalDate.now()
+
     fun xAxixMaximun(): Float {
         return if (categories.isNotEmpty()) {
             categories.size.toFloat() - 1
         } else if (series.isNotEmpty()) {
-            series.maxOf { serie ->
-                try {
-                    serie.coordinates.maxOf { point -> point.position ?: 0f }
-                } catch (e: NoSuchElementException) {
-                    0f
+            val min = minDate()
+            val max = maxDate()
+            return when (eventPeriodType) {
+                PeriodType.Daily,
+                PeriodType.Weekly,
+                PeriodType.WeeklySaturday,
+                PeriodType.WeeklySunday,
+                PeriodType.WeeklyThursday,
+                PeriodType.WeeklyWednesday,
+                PeriodType.BiWeekly,
+                PeriodType.Monthly,
+                PeriodType.BiMonthly,
+                PeriodType.Quarterly,
+                PeriodType.SixMonthly,
+                PeriodType.SixMonthlyApril,
+                PeriodType.SixMonthlyNov,
+                -> {
+                    ChronoUnit.MONTHS.between(YearMonth.from(min), YearMonth.from(max)).toFloat()
+                }
+
+                PeriodType.Yearly,
+                PeriodType.FinancialApril,
+                PeriodType.FinancialJuly,
+                PeriodType.FinancialOct,
+                PeriodType.FinancialNov,
+                -> {
+                    ChronoUnit.YEARS.between(YearMonth.from(min), YearMonth.from(max)).toFloat()
                 }
             }
         } else {
@@ -60,46 +93,83 @@ data class Graph(
         } else {
             Date(
                 baseSeries().first().coordinates.first().eventDate.time +
-                    numberOfSteps * periodStep
+                    numberOfSteps * periodStep,
             )
         }
     }
 
+    fun localDateFromSteps(numberOfSteps: Long): LocalDate {
+        return when (eventPeriodType) {
+            PeriodType.Daily,
+            PeriodType.Weekly,
+            PeriodType.WeeklySaturday,
+            PeriodType.WeeklySunday,
+            PeriodType.WeeklyThursday,
+            PeriodType.WeeklyWednesday,
+            PeriodType.BiWeekly,
+            PeriodType.Monthly,
+            PeriodType.BiMonthly,
+            PeriodType.Quarterly,
+            PeriodType.SixMonthly,
+            PeriodType.SixMonthlyApril,
+            PeriodType.SixMonthlyNov,
+            -> {
+                val date = minDate().plusMonths(numberOfSteps)
+                YearMonth.from(date).atDay(1)
+            }
+
+            PeriodType.Yearly,
+            PeriodType.FinancialApril,
+            PeriodType.FinancialJuly,
+            PeriodType.FinancialOct,
+            PeriodType.FinancialNov,
+            -> {
+                val date = minDate().plusYears(numberOfSteps)
+                YearMonth.from(date).atDay(1)
+            }
+        }
+    }
+
     fun maxValue(): Float {
-        return series.map {
-            it.coordinates.map { points -> points.fieldValue }.maxOrNull() ?: 0f
-        }.maxOrNull()
-            ?: 0f
+        return series.maxOfOrNull {
+            it.coordinates.maxOfOrNull { points -> points.numericValue() } ?: 0f
+        } ?: 0f
     }
 
     fun minValue(): Float {
-        return series.map {
-            it.coordinates.map { points -> points.fieldValue }.minOrNull() ?: 0f
-        }
-            .minOrNull()
-            ?: 0f
+        return series.minOfOrNull {
+            it.coordinates.minOfOrNull { points -> points.numericValue() } ?: 0f
+        } ?: 0f
     }
 
     private fun baseSeries(): List<SerieData> = if (chartType == ChartType.NUTRITION) {
-        listOf(series.last())
+        listOfNotNull(series.lastOrNull())
     } else {
         series
     }
 
     fun canBeShown(): Boolean {
-        return if (orgUnitsSelected.isNotEmpty() || periodToDisplaySelected != null) {
-            true
-        } else {
-            series.isNotEmpty()
-        }
+        return graphFilters?.canDisplayChart(series.isNotEmpty()) ?: series.isNotEmpty()
     }
 
     fun isSingleValue() = series.size == 1 && series[0].coordinates.size == 1
+
+    fun orgUnitsSelected(lineListingColumnIndex: Int? = null): List<String> {
+        return when (graphFilters) {
+            is GraphFilters.LineListing ->
+                lineListingColumnIndex?.let { graphFilters.orgUnitsSelected[lineListingColumnIndex] } ?: emptyList()
+
+            is GraphFilters.Visualization ->
+                graphFilters.orgUnitsSelected
+
+            null -> emptyList()
+        }
+    }
 }
 
 data class SerieData(
     val fieldName: String,
-    val coordinates: List<GraphPoint>
+    val coordinates: List<GraphPoint>,
 )
 
 data class LegendValue(val color: Int, val label: String?)
@@ -107,10 +177,25 @@ data class LegendValue(val color: Int, val label: String?)
 data class GraphPoint(
     val eventDate: Date,
     val position: Float? = -1f,
-    val fieldValue: Float,
+    private val fieldValue: GraphFieldValue,
     val legend: String? = null,
-    val legendValue: LegendValue? = null
-)
+    val legendValue: LegendValue? = null,
+) {
+    fun numericValue() = when (fieldValue) {
+        is GraphFieldValue.Numeric -> fieldValue.value
+        is GraphFieldValue.Text -> 0f
+    }
+
+    fun textValue() = when (fieldValue) {
+        is GraphFieldValue.Numeric -> fieldValue.value.toString()
+        is GraphFieldValue.Text -> fieldValue.value
+    }
+}
+
+sealed class GraphFieldValue {
+    data class Numeric(val value: Float) : GraphFieldValue()
+    data class Text(val value: String) : GraphFieldValue()
+}
 
 fun Graph.toChartBuilder(): Chart.ChartBuilder {
     return Chart.ChartBuilder()

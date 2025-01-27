@@ -1,15 +1,16 @@
 package org.dhis2.usescases.datasets.datasetDetail;
 
-
 import static org.dhis2.data.dhislogic.AuthoritiesKt.AUTH_DATAVALUE_ADD;
 
-import org.dhis2.data.dhislogic.DhisPeriodUtils;
+import org.dhis2.commons.resources.DhisPeriodUtils;
 import org.hisp.dhis.android.core.D2;
 import org.hisp.dhis.android.core.arch.helpers.UidsHelper;
+import org.hisp.dhis.android.core.category.CategoryCombo;
 import org.hisp.dhis.android.core.category.CategoryOption;
 import org.hisp.dhis.android.core.category.CategoryOptionCombo;
 import org.hisp.dhis.android.core.common.State;
 import org.hisp.dhis.android.core.dataset.DataSetCompleteRegistration;
+import org.hisp.dhis.android.core.dataset.DataSetEditableStatus;
 import org.hisp.dhis.android.core.dataset.DataSetInstanceCollectionRepository;
 import org.hisp.dhis.android.core.organisationunit.OrganisationUnit;
 import org.hisp.dhis.android.core.period.DatePeriod;
@@ -55,7 +56,6 @@ public class DataSetDetailRepositoryImpl implements DataSetDetailRepository {
             repo = repo.byPeriodStartDate().inDatePeriods(periodFilter);
         if (!catOptComboFilters.isEmpty())
             repo = repo.byAttributeOptionComboUid().in(UidsHelper.getUids(catOptComboFilters));
-
         d2.dataSetModule().dataSets().uid(dataSetUid).blockingGet();
         int dataSetOrgUnitNumber = d2.organisationUnitModule().organisationUnits()
                 .byDataSetUids(Collections.singletonList(dataSetUid))
@@ -80,17 +80,22 @@ public class DataSetDetailRepositoryImpl implements DataSetDetailRepository {
 
                     boolean isCompleted = dscr != null && Boolean.FALSE.equals(dscr.deleted());
 
+                    //"Category Combination Name" + "Category option selected"
                     return DataSetDetailModel.create(
+                            dataSetReport.dataSetUid(),
                             dataSetReport.organisationUnitUid(),
-                            dataSetReport.attributeOptionComboUid(),
+                            dataSetReport.attributeOptionComboUid(), //catComboUid
                             dataSetReport.period(),
                             dataSetReport.organisationUnitDisplayName(),
-                            dataSetReport.attributeOptionComboDisplayName(),
+                            dataSetReport.attributeOptionComboDisplayName(), //nameCatCombo Unicef.... basic educc
                             periodName,
                             state,
                             dataSetReport.periodType().name(),
                             dataSetOrgUnitNumber > 1,
-                            isCompleted);
+                            isCompleted,
+                            dataSetReport.lastUpdated(),
+                            getCategoryComboFromOptionCombo(dataSetReport.attributeOptionComboUid()).displayName()
+                    );
                 })
                 .filter(dataSetDetailModel -> stateFilters.isEmpty() || stateFilters.contains(dataSetDetailModel.state()))
                 .toSortedList((dataSet1, dataSet2) -> {
@@ -159,5 +164,32 @@ public class DataSetDetailRepositoryImpl implements DataSetDetailRepository {
         return visualizationSettings.dataSet().get(dataSetUid) != null &&
                 !Objects.requireNonNull(visualizationSettings.dataSet().get(dataSetUid)).isEmpty();
 
+    }
+
+    @Override
+    public boolean dataSetIsEditable(
+            String datasetUid,
+            String periodId,
+            String organisationUnitUid,
+            String attributeOptionComboUid) {
+        return d2.dataSetModule()
+                .dataSetInstanceService()
+                .blockingGetEditableStatus(
+                        datasetUid,
+                        periodId,
+                        organisationUnitUid,
+                        attributeOptionComboUid
+                ) instanceof DataSetEditableStatus.Editable;
+    }
+
+    private CategoryCombo getCategoryComboFromOptionCombo(String categoryOptionComboUid) {
+        CategoryOptionCombo catOptionCombo = d2.categoryModule()
+                .categoryOptionCombos()
+                .uid(categoryOptionComboUid)
+                .blockingGet();
+        return d2.categoryModule()
+                .categoryCombos()
+                .uid(catOptionCombo.categoryCombo().uid())
+                .blockingGet();
     }
 }

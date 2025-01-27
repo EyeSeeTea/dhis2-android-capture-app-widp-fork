@@ -1,12 +1,14 @@
 package org.dhis2.form.ui.provider
 
+import androidx.compose.ui.graphics.Color
 import org.dhis2.commons.resources.ResourceManager
 import org.dhis2.form.model.LegendValue
 import org.hisp.dhis.android.core.D2
+import org.hisp.dhis.mobile.ui.designsystem.component.LegendDescriptionData
 
 class LegendValueProviderImpl(
     val d2: D2,
-    val resourceManager: ResourceManager
+    val resourceManager: ResourceManager,
 ) : LegendValueProvider {
 
     override fun provideLegendValue(dataElementUid: String, value: String?): LegendValue? {
@@ -30,10 +32,25 @@ class LegendValueProviderImpl(
                         .byLegendSet().eq(legendSet.uid())
                         .one()
                         .blockingGet()
+                    val legendValues = d2.legendSetModule()
+                        .legendSets()
+                        .withLegends()
+                        .uid(legendSet.uid())
+                        .blockingGet()
                     if (legend != null) {
                         return LegendValue(
                             resourceManager.getColorFrom(legend.color()),
-                            legend.displayName()
+                            legend.displayName(),
+                            legendValues?.legends()?.sortedBy { it.startValue() }?.map {
+                                LegendDescriptionData(
+                                    Color(resourceManager.getColorFrom(it.color())),
+                                    it.displayName() ?: "",
+                                    IntRange(
+                                        it.startValue()?.toInt() ?: 0,
+                                        it.endValue()?.toInt() ?: 0,
+                                    ),
+                                )
+                            },
                         )
                     }
                 }

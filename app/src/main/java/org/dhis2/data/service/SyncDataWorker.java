@@ -1,8 +1,11 @@
 package org.dhis2.data.service;
 
+import static org.dhis2.utils.analytics.AnalyticsConstants.DATA_TIME;
+
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.pm.ServiceInfo;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
@@ -15,10 +18,10 @@ import androidx.work.WorkerParameters;
 
 import org.dhis2.App;
 import org.dhis2.R;
+import org.dhis2.commons.Constants;
+import org.dhis2.commons.date.DateUtils;
 import org.dhis2.commons.network.NetworkUtils;
 import org.dhis2.commons.prefs.PreferenceProvider;
-import org.dhis2.commons.Constants;
-import org.dhis2.utils.DateUtils;
 
 import java.util.Calendar;
 import java.util.Objects;
@@ -26,8 +29,6 @@ import java.util.Objects;
 import javax.inject.Inject;
 
 import timber.log.Timber;
-
-import static org.dhis2.utils.analytics.AnalyticsConstants.DATA_TIME;
 
 public class SyncDataWorker extends Worker {
 
@@ -49,7 +50,9 @@ public class SyncDataWorker extends Worker {
     @NonNull
     @Override
     public Result doWork() {
-        Objects.requireNonNull(((App) getApplicationContext()).userComponent()).plus(new SyncDataWorkerModule()).inject(this);
+        Objects.requireNonNull(((App) getApplicationContext()).userComponent())
+                .plus(new SyncDataWorkerModule())
+                .inject(this);
 
         presenter.initSyncControllerMap();
 
@@ -67,12 +70,12 @@ public class SyncDataWorker extends Worker {
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
                 getApplicationContext().getString(R.string.syncing_events),
-                25);
+                20);
 
         try {
             presenter.syncAndDownloadEvents();
         } catch (Exception e) {
-            if(!new NetworkUtils(getApplicationContext()).isOnline()){
+            if (!new NetworkUtils(getApplicationContext()).isOnline()) {
                 presenter.setNetworkUnavailable();
             }
             Timber.e(e);
@@ -82,12 +85,12 @@ public class SyncDataWorker extends Worker {
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
                 getApplicationContext().getString(R.string.syncing_teis),
-                50);
+                40);
 
         try {
             presenter.syncAndDownloadTeis();
         } catch (Exception e) {
-            if(!new NetworkUtils(getApplicationContext()).isOnline()){
+            if (!new NetworkUtils(getApplicationContext()).isOnline()) {
                 presenter.setNetworkUnavailable();
             }
             Timber.e(e);
@@ -97,12 +100,12 @@ public class SyncDataWorker extends Worker {
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
                 getApplicationContext().getString(R.string.syncing_data_sets),
-                75);
+                60);
 
         try {
             presenter.syncAndDownloadDataValues();
         } catch (Exception e) {
-            if(!new NetworkUtils(getApplicationContext()).isOnline()){
+            if (!new NetworkUtils(getApplicationContext()).isOnline()) {
                 presenter.setNetworkUnavailable();
             }
             Timber.e(e);
@@ -112,10 +115,23 @@ public class SyncDataWorker extends Worker {
         triggerNotification(
                 getApplicationContext().getString(R.string.app_name),
                 getApplicationContext().getString(R.string.syncing_resources),
-                90);
+                80);
 
         try {
             presenter.downloadResources();
+        } catch (Exception e) {
+            Timber.e(e);
+        }
+
+        triggerNotification(
+                getApplicationContext().getString(R.string.app_name),
+                "syncing reserved values",
+                95
+
+        );
+
+        try {
+            presenter.syncReservedValues();
         } catch (Exception e) {
             Timber.e(e);
         }
@@ -174,7 +190,11 @@ public class SyncDataWorker extends Worker {
                         .setProgress(100, progress, false)
                         .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
-        setForegroundAsync(new ForegroundInfo(SyncDataWorker.SYNC_DATA_ID, notificationBuilder.build()));
+        setForegroundAsync(new ForegroundInfo(
+                SyncDataWorker.SYNC_DATA_ID,
+                notificationBuilder.build(),
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC : 0
+        ));
 
     }
 
