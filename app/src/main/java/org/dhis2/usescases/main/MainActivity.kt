@@ -9,28 +9,31 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.transition.ChangeBounds
-import android.transition.TransitionManager
 import android.view.View
 import android.webkit.MimeTypeMap
 import android.widget.TextView
 import android.widget.Toast
+import android.window.OnBackInvokedDispatcher
+import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.constraintlayout.widget.ConstraintSet
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.app.NotificationCompat
-import androidx.core.view.ViewCompat
 import androidx.databinding.DataBindingUtil
 import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import io.noties.markwon.Markwon
-import org.dhis2.bindings.hasPermissions
+import kotlinx.coroutines.launch
 import org.dhis2.BuildConfig
 import org.dhis2.R
 import org.dhis2.bindings.app
-import org.dhis2.commons.filters.FilterItem
-import org.dhis2.commons.filters.FilterManager
-import org.dhis2.commons.filters.FiltersAdapter
+import org.dhis2.bindings.hasPermissions
+import org.dhis2.commons.animations.hide
+import org.dhis2.commons.animations.show
 import org.dhis2.commons.sync.OnDismissListener
 import org.dhis2.commons.sync.SyncContext
 import org.dhis2.databinding.ActivityMainBinding
@@ -39,12 +42,9 @@ import org.dhis2.ui.model.ButtonUiModel
 import org.dhis2.usescases.development.DevelopmentActivity
 import org.dhis2.usescases.general.ActivityGlobalAbstract
 import org.dhis2.usescases.login.LoginActivity
-import org.dhis2.usescases.notifications.domain.Notification
-import org.dhis2.usescases.notifications.presentation.NotificationsPresenter
-import org.dhis2.usescases.notifications.presentation.NotificationsView
-import org.dhis2.utils.DateUtils
 import org.dhis2.utils.analytics.CLICK
 import org.dhis2.utils.analytics.CLOSE_SESSION
+import org.dhis2.utils.customviews.navigationbar.NavigationPage
 import org.dhis2.utils.customviews.navigationbar.NavigationPageConfigurator
 import org.dhis2.utils.extension.navigateTo
 import org.dhis2.utils.granularsync.SyncStatusDialog
@@ -52,6 +52,7 @@ import org.dhis2.utils.session.CHANGE_SERVER_URL_DIALOG_TAG
 import org.dhis2.utils.session.ChangeServerUrlDialog
 import org.dhis2.utils.session.PIN_DIALOG_TAG
 import org.dhis2.utils.session.PinDialog
+import org.hisp.dhis.mobile.ui.designsystem.component.navigationBar.NavigationBar
 import java.io.File
 import javax.inject.Inject
 
@@ -74,18 +75,13 @@ class MainActivity :
     lateinit var presenter: MainPresenter
 
     @Inject
-    lateinit var newAdapter: FiltersAdapter
-
-    @Inject
     lateinit var pageConfigurator: NavigationPageConfigurator
 
-    var notification: Boolean = false
-    var forceToNotSynced = false
     private var singleProgramNavigationDone = false
 
     private val getDevActivityContent =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            binding.navigationBar.pageConfiguration(pageConfigurator)
+            // no-op
         }
 
     private val requestWritePermissions =
@@ -100,18 +96,11 @@ class MainActivity :
     private var isPinLayoutVisible = false
     private var isChangeServerURLVisible = false
 
-    private var backDropActive = false
-    private var elevation = 0f
     private val mainNavigator = MainNavigator(
         supportFragmentManager,
-        {
-            if (backDropActive) {
-                showHideFilter()
-            }
-        },
-    ) { titleRes, showFilterButton, showBottomNavigation ->
+        { /*no-op*/ },
+    ) { titleRes, _, showBottomNavigation ->
         setTitle(getString(titleRes))
-        setFilterButtonVisibility(showFilterButton)
         setBottomNavigationVisibility(showBottomNavigation)
     }
 
@@ -144,13 +133,17 @@ class MainActivity :
     //region LIFECYCLE
     override fun onCreate(savedInstanceState: Bundle?) {
         app().userComponent()?.let {
-            mainComponent = it.plus(MainModule(this, this)).apply {
-                inject(this@MainActivity)
-            }
+            mainComponent = it.plus(
+                MainModule(
+                    view = this,
+                    forceToNotSynced = intent.getBooleanExtra(AVOID_SYNC, false)
+                ),
+            )
+            mainComponent.inject(this@MainActivity)
         } ?: navigateTo<LoginActivity>(true)
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_main)
-        forceToNotSynced = intent.getBooleanExtra(AVOID_SYNC, false)
+
         if (::presenter.isInitialized) {
             binding.presenter = presenter
         } else {
@@ -164,37 +157,12 @@ class MainActivity :
 
         binding.mainDrawerLayout.addDrawerListener(this)
 
-        binding.filterRecycler.adapter = newAdapter
-
-        binding.navigationBar.pageConfiguration(pageConfigurator)
-        binding.navigationBar.setOnNavigationItemSelectedListener {
-            when (it.itemId) {
-                R.id.navigation_tasks -> {
-                }
-
-                R.id.navigation_programs -> {
-                    mainNavigator.openPrograms()
-                }
-
-                R.id.navigation_analytics -> {
-                    presenter.trackHomeAnalytics()
-                    mainNavigator.openVisualizations()
-                }
-            }
-            true
-        }
-
-        if (BuildConfig.DEBUG) {
-            binding.menu.setOnLongClickListener {
-                getDevActivityContent.launch(Intent(this, DevelopmentActivity::class.java))
-                false
-            }
-        }
-
-        elevation = ViewCompat.getElevation(binding.toolbar)
+        setUpNavigationBar()
+        setUpDevelopmentMode()
 
         val restoreScreenName = savedInstanceState?.getString(FRAGMENT)
-        singleProgramNavigationDone = savedInstanceState?.getBoolean(SINGLE_PROGRAM_NAVIGATION) ?: false
+        singleProgramNavigationDone =
+            savedInstanceState?.getBoolean(SINGLE_PROGRAM_NAVIGATION) ?: false
         val openScreen = intent.getStringExtra(FRAGMENT)
 
         when {
@@ -233,10 +201,14 @@ class MainActivity :
         }
 
         checkNotificationPermission()
+
+        registerOnBackPressedCallback()
     }
 
     private fun checkNotificationPermission() {
-        if (!hasPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS))) {
+        if (!hasPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS)) and
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        ) {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
@@ -249,36 +221,94 @@ class MainActivity :
 
     override fun onResume() {
         super.onResume()
-
-        presenter.init()
-        presenter.initFilters()
-
-        binding.totalFilters = FilterManager.getInstance().totalFilters
+        if (sessionManagerServiceImpl.isUserLoggedIn()) {
+            presenter.init()
+        }
     }
 
     override fun onPause() {
-        presenter.setOpeningFilterToNone()
         presenter.onDetach()
         super.onPause()
     }
 
-    private fun observeSyncState() {
-        presenter.observeDataSync().observe(this) {
-            when (it.running) {
-                true -> {
-                    setFilterButtonVisibility(false)
-                    setBottomNavigationVisibility(false)
-                }
-                false -> {
-                    setFilterButtonVisibility(true)
-                    setBottomNavigationVisibility(true)
-                    presenter.onDataSuccess()
-                    if (presenter.hasOneHomeItem()) {
-                        navigateToSingleProgram()
+    private fun setUpDevelopmentMode() {
+        if (BuildConfig.DEBUG) {
+            binding.menu.setOnLongClickListener {
+                getDevActivityContent.launch(Intent(this, DevelopmentActivity::class.java))
+                false
+            }
+        }
+    }
+
+    private fun registerOnBackPressedCallback() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) {
+                backPressed()
+            }
+        } else {
+            onBackPressedDispatcher.addCallback(this) {
+                backPressed()
+            }
+        }
+    }
+
+    private fun setUpNavigationBar() {
+        binding.navigationBar.apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                val currentScreen by mainNavigator.selectedScreen.observeAsState()
+                val selectedItemIndex by remember {
+                    derivedStateOf {
+                        when (currentScreen) {
+                            MainNavigator.MainScreen.PROGRAMS -> 0
+                            MainNavigator.MainScreen.VISUALIZATIONS -> 1
+                            else -> null
+                        }
                     }
                 }
-                else -> {
-                    // no action
+                if (pageConfigurator.navigationItems().size > 1) {
+                    NavigationBar(
+                        items = pageConfigurator.navigationItems(),
+                        selectedItemIndex = selectedItemIndex ?: 0,
+                    ) { navigationPage ->
+                        when (navigationPage) {
+                            NavigationPage.ANALYTICS -> {
+                                presenter.trackHomeAnalytics()
+                                mainNavigator.openVisualizations()
+                            }
+
+                            NavigationPage.PROGRAMS -> mainNavigator.openPrograms()
+                            else -> {
+                                /*no-op*/
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeSyncState() {
+        lifecycleScope.launch {
+            presenter.observeDataSync().collect {
+                when (it.running) {
+                    true -> {
+                        binding.syncActionButton.visibility = View.GONE
+                        setBottomNavigationVisibility(false)
+                    }
+
+                    false -> {
+                        binding.syncActionButton.visibility = View.VISIBLE
+                        setBottomNavigationVisibility(true)
+                        presenter.onDataSuccess()
+                        if (presenter.hasOneHomeItem()) {
+                            navigateToSingleProgram()
+                        }
+                    }
+
+                    else -> {
+                        // no action
+                    }
                 }
             }
         }
@@ -312,7 +342,7 @@ class MainActivity :
                 object : OnDismissListener {
                     override fun onDismiss(hasChanged: Boolean) {
                         if (hasChanged) {
-                            mainNavigator.getCurrentIfProgram()?.presenter?.updateProgramQueries()
+                            mainNavigator.getCurrentIfProgram()?.programViewModel?.updateProgramQueries()
                         }
                     }
                 },
@@ -356,36 +386,6 @@ class MainActivity :
         }
     }
 
-    override fun showHideFilter() {
-        val transition = ChangeBounds()
-        transition.duration = 200
-        TransitionManager.beginDelayedTransition(binding.backdropLayout, transition)
-        backDropActive = !backDropActive
-        val initSet = ConstraintSet()
-        initSet.clone(binding.backdropLayout)
-        if (backDropActive) {
-            initSet.connect(
-                R.id.fragment_container,
-                ConstraintSet.TOP,
-                R.id.filterRecycler,
-                ConstraintSet.BOTTOM,
-                50,
-            )
-            binding.navigationBar.hide()
-        } else {
-            initSet.connect(
-                R.id.fragment_container,
-                ConstraintSet.TOP,
-                R.id.toolbar,
-                ConstraintSet.BOTTOM,
-                0,
-            )
-            binding.navigationBar.show()
-        }
-        initSet.applyTo(binding.backdropLayout)
-        mainNavigator.getCurrentIfProgram()?.openFilter(backDropActive)
-    }
-
     override fun onLockClick() {
         if (!presenter.isPinStored()) {
             binding.mainDrawerLayout.closeDrawers()
@@ -407,18 +407,16 @@ class MainActivity :
         isChangeServerURLVisible = true
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
+    private fun backPressed() {
         when {
             !mainNavigator.isHome() -> presenter.onNavigateBackToHome()
             isPinLayoutVisible -> isPinLayoutVisible = false
             isChangeServerURLVisible -> isChangeServerURLVisible = false
-            else -> super.onBackPressed()
         }
     }
 
     override fun goToHome() {
-        mainNavigator.openHome(binding.navigationBar)
+        mainNavigator.openHome()
     }
 
     override fun changeFragment(id: Int) {
@@ -426,39 +424,8 @@ class MainActivity :
         binding.mainDrawerLayout.closeDrawers()
     }
 
-    override fun updateFilters(totalFilters: Int) {
-        binding.totalFilters = totalFilters
-    }
-
-    override fun showPeriodRequest(periodRequest: FilterManager.PeriodRequest) {
-        if (periodRequest == FilterManager.PeriodRequest.FROM_TO) {
-            DateUtils.getInstance()
-                .fromCalendarSelector(this) { FilterManager.getInstance().addPeriod(it) }
-        } else {
-            DateUtils.getInstance()
-                .showPeriodDialog(
-                    this,
-                    { datePeriods -> FilterManager.getInstance().addPeriod(datePeriods) },
-                    true,
-                )
-        }
-    }
-
     fun setTitle(title: String) {
         binding.title.text = title
-    }
-
-    private fun setFilterButtonVisibility(showFilterButton: Boolean) {
-        binding.filterActionButton.visibility = if (showFilterButton) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
-        binding.syncActionButton.visibility = if (showFilterButton) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
     }
 
     private fun setBottomNavigationVisibility(showBottomNavigation: Boolean) {
@@ -469,14 +436,6 @@ class MainActivity :
         }
     }
 
-    override fun setFilters(filters: List<FilterItem>) {
-        newAdapter.submitList(filters)
-    }
-
-    override fun hideFilters() {
-        binding.filterActionButton.visibility = View.GONE
-    }
-
     override fun onDrawerStateChanged(newState: Int) {
     }
 
@@ -485,9 +444,6 @@ class MainActivity :
 
     override fun onDrawerClosed(drawerView: View) {
         initCurrentScreen()
-        if (mainNavigator.isPrograms() && !isNotificationRunning()) {
-            presenter.initFilters()
-        }
     }
 
     override fun onDrawerOpened(drawerView: View) {
@@ -506,11 +462,6 @@ class MainActivity :
                 mainNavigator.openQR()
             }
 
-            R.id.menu_jira -> {
-                presenter.trackJiraReport()
-                mainNavigator.openJira()
-            }
-
             R.id.menu_about -> {
                 mainNavigator.openAbout()
             }
@@ -526,7 +477,7 @@ class MainActivity :
             }
 
             R.id.menu_home -> {
-                mainNavigator.openHome(binding.navigationBar)
+                mainNavigator.openHome()
                 notificationsPresenter.refresh(this)
             }
 
@@ -540,10 +491,6 @@ class MainActivity :
             R.id.change_url -> {
                 onChangeServerURL()
             }
-        }
-
-        if (backDropActive && mainNavigator.isPrograms()) {
-            showHideFilter()
         }
     }
 
@@ -562,7 +509,6 @@ class MainActivity :
     }
 
     override fun showProgressDeleteNotification() {
-        notification = true
         val notificationManager =
             context.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -586,14 +532,6 @@ class MainActivity :
 
     override fun obtainFileView(): File? {
         return this.cacheDir
-    }
-
-    private fun isNotificationRunning(): Boolean {
-        return notification
-    }
-
-    override fun hasToNotSync(): Boolean {
-        return forceToNotSynced
     }
 
     override fun cancelNotifications() {

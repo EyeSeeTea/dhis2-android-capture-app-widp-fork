@@ -1,5 +1,9 @@
 package org.dhis2.data.notifications
 
+
+import NotificationsApi
+import UserGroupsApi
+import kotlinx.coroutines.runBlocking
 import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference.Companion.NOTIFICATIONS
 import org.dhis2.usescases.notifications.domain.Notification
@@ -19,11 +23,8 @@ import org.mockito.junit.MockitoJUnitRunner
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import retrofit2.Call
-import retrofit2.Response
 import java.util.Date
 
 @RunWith(MockitoJUnitRunner::class)
@@ -260,13 +261,13 @@ class NotificationD2RepositoryTest {
                 .blockingGet(),
         ) doReturn user
 
-        val notificationMockCall = mock<Call<List<Notification>>>()
-        whenever(notificationMockCall.execute()) doReturn Response.success(notifications)
-        whenever(notificationsApi.getData()) doReturn notificationMockCall
+        runBlocking {
+            whenever(notificationsApi.getData()) doReturn notifications
+        }
 
-        val mockCall = mock<Call<UserGroups>>()
-        whenever(mockCall.execute()) doReturn Response.success(userGroups)
-        whenever(userGroupsApi.getData(user.uid())) doReturn mockCall
+        runBlocking {
+            whenever(userGroupsApi.getData(user.uid())) doReturn userGroups
+        }
 
         return NotificationD2Repository(
             d2,
