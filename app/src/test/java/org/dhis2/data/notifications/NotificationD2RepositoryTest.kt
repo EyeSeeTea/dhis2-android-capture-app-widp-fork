@@ -3,6 +3,7 @@ package org.dhis2.data.notifications
 
 import NotificationsApi
 import UserGroupsApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference.Companion.NOTIFICATIONS
@@ -43,10 +44,10 @@ class NotificationD2RepositoryTest {
     val user = givenAnUser()
 
     @Test
-    fun `Should sync empty notifications if it's empty in remote`() {
+    fun `Should sync empty notifications if it's empty in remote`()  = runBlocking {
         val repository = givenTestData(user, listOf(), UserGroups(userGroups = listOf()))
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -55,12 +56,12 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should sync notifications with all receivers`() {
+    fun `Should sync notifications with all receivers`() = runBlocking {
         val notifications = listOf(givenANotification(wildcard = "ALL"))
 
         val repository = givenTestData(user, notifications, UserGroups(userGroups = listOf()))
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -69,7 +70,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should sync notifications with android receivers and for specific user`() {
+    fun `Should sync notifications with android receivers and for specific user`()  = runBlocking{
         val notifications = listOf(
             givenANotification(
                 wildcard = "Android",
@@ -79,7 +80,7 @@ class NotificationD2RepositoryTest {
 
         val repository = givenTestData(user, notifications, UserGroups(userGroups = listOf()))
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -88,7 +89,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should sync notifications with android receivers and for specific userGroup`() {
+    fun `Should sync notifications with android receivers and for specific userGroup`()  = runBlocking{
         val notifications = listOf(
             givenANotification(
                 wildcard = "Android",
@@ -102,7 +103,7 @@ class NotificationD2RepositoryTest {
             UserGroups(userGroups = listOf(Ref(id = "userGroup1", name = null)))
         )
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -111,7 +112,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should sync notifications with both receivers and for specific user`() {
+    fun `Should sync notifications with both receivers and for specific user`()  = runBlocking{
         val notifications = listOf(
             givenANotification(
                 wildcard = "Both",
@@ -121,7 +122,7 @@ class NotificationD2RepositoryTest {
 
         val repository = givenTestData(user, notifications, UserGroups(userGroups = listOf()))
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -130,7 +131,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should sync notifications with both receivers and for specific userGroup`() {
+    fun `Should sync notifications with both receivers and for specific userGroup`()  = runBlocking{
         val notifications = listOf(
             givenANotification(
                 wildcard = "both",
@@ -144,7 +145,7 @@ class NotificationD2RepositoryTest {
             UserGroups(userGroups = listOf(Ref(id = "userGroup1", name = null)))
         )
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -153,7 +154,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should not sync notifications with web receivers and for specific user`() {
+    fun `Should not sync notifications with web receivers and for specific user`() = runBlocking {
         val notifications = listOf(
             givenANotification(
                 wildcard = "Web",
@@ -163,7 +164,7 @@ class NotificationD2RepositoryTest {
 
         val repository = givenTestData(user, notifications, UserGroups(userGroups = listOf()))
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -172,7 +173,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should not sync notifications with web receivers and for specific userGroup`() {
+    fun `Should not sync notifications with web receivers and for specific userGroup`()  = runBlocking{
         val notifications = listOf(
             givenANotification(
                 wildcard = "web",
@@ -186,7 +187,7 @@ class NotificationD2RepositoryTest {
             UserGroups(userGroups = listOf(Ref(id = "userGroup1", name = null)))
         )
 
-        repository.sync()
+        repository.sync().first()
 
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
@@ -195,7 +196,7 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should only sync expected notifications`() {
+    fun `Should only sync expected notifications`() = runBlocking {
         val forWebByUserGroup = givenANotification(
             wildcard = "web",
             userGroups = arrayListOf(Ref(id = "userGroup1", name = null))
@@ -240,7 +241,7 @@ class NotificationD2RepositoryTest {
             UserGroups(userGroups = listOf(Ref(id = "userGroup1", name = null)))
         )
 
-        repository.sync()
+        repository.sync().first()
 
         verifySyncedNotifications(
             forBothByUserGroup,
