@@ -498,6 +498,7 @@ class MainActivity :
             R.id.sync_manager -> {
                 presenter.onClickSyncManager()
                 mainNavigator.openSettings()
+                notificationsPresenter.markShowNotificationsAsPending()
             }
 
             R.id.qr_scan -> {
@@ -526,6 +527,7 @@ class MainActivity :
 
             R.id.menu_home -> {
                 mainNavigator.openHome(binding.navigationBar)
+                notificationsPresenter.refresh(this)
             }
 
             R.id.menu_troubleshooting -> {

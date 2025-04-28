@@ -48,8 +48,7 @@ class NotificationD2Repository(
     }
 
     override fun getById(id: String): Notification? {
-        sync()
-        val notifications = get()
+        val notifications = getAllNotificationsFromRemote()
 
         return notifications.find { it.id == id }
     }
@@ -102,28 +101,34 @@ class NotificationD2Repository(
         userGroups: List<Ref>
     ): List<Notification> {
         val userGroupIds = userGroups.map { it.id }
+        val userId = d2.userModule().user().blockingGet()!!.uid()
 
         val nonReadByUserNotifications = allNotifications.filter { notification ->
             notification.readBy.none { readBy ->
-                readBy.id == d2.userModule().user().blockingGet()!!.uid()
+                readBy.id == userId
             }
         }
 
         val notificationsByAll = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.wildcard == "ALL"
+            notification.recipients.wildcard.lowercase() == "ALL".lowercase()
         }
 
         val notificationsByUserGroup = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.userGroups.any { userGroupIds.contains(it.id) }
+            notification.recipients.userGroups.any { userGroupIds.contains(it.id) } &&
+                    isForAndroid(notification)
         }
 
         val notificationsByUser = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.users.any {
-                it.id == d2.userModule().user().blockingGet()!!.uid()
-            }
+            notification.recipients.users.any { it.id == userId } && isForAndroid(notification)
         }
 
-        return notificationsByAll + notificationsByUserGroup + notificationsByUser
+        return (notificationsByAll + notificationsByUserGroup + notificationsByUser).distinct()
+    }
+
+    private fun isForAndroid(notification: Notification): Boolean {
+        return notification.recipients.wildcard.lowercase() == "Android".lowercase() ||
+                notification.recipients.wildcard == "" ||
+                notification.recipients.wildcard.lowercase() == "BOTH".lowercase()
     }
 }
 
