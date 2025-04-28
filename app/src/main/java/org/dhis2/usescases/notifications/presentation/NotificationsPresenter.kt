@@ -10,23 +10,25 @@ import org.dhis2.usescases.notifications.domain.Notification
 class NotificationsPresenter(
     private val getNotifications: GetNotifications,
     private val markNotificationAsRead: MarkNotificationAsRead
-){
-    fun refresh(notificationsView: NotificationsView) {
+) {
+    fun refresh(notificationsView: NotificationsView,) {
         if (ShowNotifications.isPending) {
             ShowNotifications.isPending = false
-            val notifications = getNotifications()
-
-            notificationsView.renderNotifications(notifications)
+            CoroutineScope(Dispatchers.Main).launch {
+                getNotifications().collect {
+                    notificationsView.renderNotifications(it)
+                }
+            }
         }
     }
 
-    fun markShowNotificationsAsPending (){
+    fun markShowNotificationsAsPending() {
         ShowNotifications.isPending = true
     }
 
     fun markNotificationAsRead(notification: Notification) {
         CoroutineScope(Dispatchers.IO).launch {
-            markNotificationAsRead.invoke(notification.id)
+            markNotificationAsRead.invoke(notification.id).collect {}
         }
     }
 }

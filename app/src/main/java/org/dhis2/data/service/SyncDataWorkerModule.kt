@@ -3,11 +3,7 @@ package org.dhis2.data.service
 import dagger.Module
 import dagger.Provides
 import org.dhis2.commons.di.dagger.PerService
-import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.PreferenceProvider
-import org.dhis2.data.notifications.NotificationD2Repository
-import org.dhis2.data.notifications.NotificationsApi
-import org.dhis2.data.notifications.UserGroupsApi
 import org.dhis2.data.service.workManager.WorkManagerController
 import org.dhis2.usescases.notifications.domain.NotificationRepository
 import org.dhis2.utils.analytics.AnalyticsHelper

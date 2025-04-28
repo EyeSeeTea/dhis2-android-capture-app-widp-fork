@@ -44,9 +44,9 @@ import org.hisp.dhis.android.core.trackedentity.search.TrackedEntitySearchCollec
 import timber.log.Timber
 import javax.inject.Inject
 
-data class TextFilter(val dataElement: String, val text: String)
-
-class FilterRepository @Inject constructor(
+class FilterRepository
+@Inject
+constructor(
     private val d2: D2,
     val resources: FilterResources,
     private val getFiltersApplyingWebAppConfig: GetFiltersApplyingWebAppConfig,
@@ -192,17 +192,6 @@ class FilterRepository @Inject constructor(
             .eventQuery()
             .byIncludeDeleted().eq(false)
             .byProgram().eq(programUid)
-    }
-
-    fun eventsByProgramAndTextFilter(
-        programUid: String
-    ): EventQueryCollectionRepository {
-        return d2.eventModule()
-            .eventQuery()
-            .byIncludeDeleted()
-            .eq(false)
-            .byProgram()
-            .eq(programUid)
     }
 
     fun applyOrgUnitFilter(
@@ -546,7 +535,7 @@ class FilterRepository @Inject constructor(
             ProgramType.TRACKER,
             observableSortingInject,
             observableOpenFilter,
-            resources.filterEventDateLabel(),
+            resources.filterEventDateLabel(program.uid()),
         )
         defaultTrackerFilters[ProgramFilter.ENROLLMENT_DATE] = EnrollmentDateFilter(
             ProgramType.TRACKER,
@@ -578,7 +567,7 @@ class FilterRepository @Inject constructor(
             ProgramType.TRACKER,
             observableSortingInject,
             observableOpenFilter,
-            resources.filterEventStatusLabel(),
+            resources.filterEventStatusLabel(program.uid()),
         )
 
         val stagesByProgramUidAndUserAssignment = d2.programModule()
@@ -708,7 +697,7 @@ class FilterRepository @Inject constructor(
             programType,
             observableSortingInject,
             observableOpenFilter,
-            resources.filterEventStatusLabel(),
+            resources.filterEventStatusLabel(program.uid()),
         )
 
         val stagesByProgramAndUserAssignment = d2.programModule()
