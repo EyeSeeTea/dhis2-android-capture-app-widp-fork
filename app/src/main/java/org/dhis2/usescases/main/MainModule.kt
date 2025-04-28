@@ -17,12 +17,13 @@ import org.dhis2.data.service.SyncStatusController
 import org.dhis2.data.service.VersionRepository
 import org.dhis2.data.service.workManager.WorkManagerController
 import org.dhis2.usescases.login.SyncIsPerformedInteractor
+import org.dhis2.usescases.notifications.presentation.NotificationsView
 import org.dhis2.usescases.settings.DeleteUserData
 import org.dhis2.utils.customviews.navigationbar.NavigationPageConfigurator
 import org.hisp.dhis.android.core.D2
 
 @Module
-class MainModule(val view: MainView) {
+class MainModule(val view: MainView, private val notificationsView: NotificationsView) {
 
     @Provides
     @PerActivity

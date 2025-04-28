@@ -9,7 +9,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
+import android.util.AttributeSet;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
@@ -35,6 +38,9 @@ import org.dhis2.data.server.ServerComponent;
 import org.dhis2.usescases.login.LoginActivity;
 import org.dhis2.usescases.login.accounts.AccountsActivity;
 import org.dhis2.usescases.main.MainActivity;
+import org.dhis2.usescases.notifications.domain.Notification;
+import org.dhis2.usescases.notifications.presentation.NotificationsPresenter;
+import org.dhis2.usescases.notifications.presentation.NotificationsView;
 import org.dhis2.usescases.qrScanner.ScanActivity;
 import org.dhis2.usescases.splash.SplashActivity;
 import org.dhis2.utils.HelpManager;
@@ -46,15 +52,18 @@ import org.dhis2.commons.reporting.CrashReportController;
 import org.dhis2.utils.session.PinDialog;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 import javax.inject.Inject;
 
+import io.noties.markwon.Markwon;
 import io.reactivex.Observable;
 import io.reactivex.subjects.BehaviorSubject;
 import kotlin.Unit;
 
 
 public abstract class ActivityGlobalAbstract extends AppCompatActivity
-        implements AbstractActivityContracts.View, ActivityResultObservable {
+        implements AbstractActivityContracts.View, ActivityResultObservable, NotificationsView {
 
     private static final String FRAGMENT_TAG = "SYNC";
 
@@ -66,6 +75,9 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity
     public CrashReportController crashReportController;
     @Inject
     public LocationProvider locationProvider;
+
+    @Inject
+    public NotificationsPresenter notificationsPresenter;
 
     private PinDialog pinDialog;
     private boolean comesFromImageSource = false;
@@ -92,7 +104,9 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         ServerComponent serverComponent = ((App) getApplicationContext()).getServerComponent();
+
         if (serverComponent != null) {
+
             serverComponent.openIdSession().setSessionCallback(this, logOutReason -> {
                 startActivity(LoginActivity.class, LoginActivity.Companion.bundle(true, -1, false, logOutReason), true, true, null);
                 return Unit.INSTANCE;
@@ -126,6 +140,10 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity
             }
         }
 
+        if (notificationsPresenter != null){
+            notificationsPresenter.refresh(this);
+        }
+
         super.onCreate(savedInstanceState);
     }
 
@@ -147,10 +165,20 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity
     }
 
     @Override
+    public View onCreateView(@NonNull String name, @NonNull Context context,
+                             @NonNull AttributeSet attrs) {
+
+
+        return super.onCreateView(name, context, attrs);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         lifeCycleObservable.onNext(Status.ON_RESUME);
         shouldCheckPIN();
+
+
     }
 
     private void shouldCheckPIN() {
@@ -390,5 +418,26 @@ public abstract class ActivityGlobalAbstract extends AppCompatActivity
     @Override
     public AnalyticsHelper analyticsHelper() {
         return analyticsHelper;
+    }
+
+    @Override
+    public void renderNotifications(List<Notification> notifications) {
+        for (Notification notification : notifications) {
+            showNotification(notification);
+        }
+    }
+
+    private void showNotification(Notification notification) {
+        Markwon markwon = Markwon.create(getContext());
+        String content = String.valueOf(markwon.toMarkdown(notification.getContent()));
+
+        new android.app.AlertDialog.Builder(getContext(), R.style.CustomDialog)
+                .setTitle("Notification")
+                .setMessage(content)
+                .setPositiveButton(getContext().getString(R.string.wipe_data_ok), (dialog, which) -> {
+                    notificationsPresenter.markNotificationAsRead(notification);
+                })
+                .setCancelable(true)
+                .show();
     }
 }

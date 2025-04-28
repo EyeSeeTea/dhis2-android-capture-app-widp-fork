@@ -23,6 +23,7 @@ import androidx.databinding.DataBindingUtil
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import io.noties.markwon.Markwon
 import org.dhis2.bindings.hasPermissions
 import org.dhis2.BuildConfig
 import org.dhis2.R
@@ -38,6 +39,9 @@ import org.dhis2.ui.model.ButtonUiModel
 import org.dhis2.usescases.development.DevelopmentActivity
 import org.dhis2.usescases.general.ActivityGlobalAbstract
 import org.dhis2.usescases.login.LoginActivity
+import org.dhis2.usescases.notifications.domain.Notification
+import org.dhis2.usescases.notifications.presentation.NotificationsPresenter
+import org.dhis2.usescases.notifications.presentation.NotificationsView
 import org.dhis2.utils.DateUtils
 import org.dhis2.utils.analytics.CLICK
 import org.dhis2.utils.analytics.CLOSE_SESSION
@@ -140,7 +144,7 @@ class MainActivity :
     //region LIFECYCLE
     override fun onCreate(savedInstanceState: Bundle?) {
         app().userComponent()?.let {
-            mainComponent = it.plus(MainModule(this)).apply {
+            mainComponent = it.plus(MainModule(this, this)).apply {
                 inject(this@MainActivity)
             }
         } ?: navigateTo<LoginActivity>(true)
@@ -220,7 +224,12 @@ class MainActivity :
         if (!presenter.wasSyncAlreadyDone()) {
             presenter.launchInitialDataSync()
         } else if (!singleProgramNavigationDone && presenter.hasOneHomeItem()) {
+            notificationsPresenter.markShowNotificationsAsPending()
+
             navigateToSingleProgram()
+        } else {
+            notificationsPresenter.markShowNotificationsAsPending()
+            notificationsPresenter.refresh(this)
         }
 
         checkNotificationPermission()
