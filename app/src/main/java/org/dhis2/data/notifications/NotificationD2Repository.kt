@@ -1,6 +1,11 @@
 package org.dhis2.data.notifications
 
+import NotificationsApi
+import UserGroupsApi
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flow
 import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference
 import org.dhis2.usescases.notifications.domain.Notification
@@ -17,7 +22,7 @@ class NotificationD2Repository(
     private val userGroupsApi: UserGroupsApi
 ) : NotificationRepository {
 
-    override fun sync() {
+    override fun sync(): Flow<Unit> = flow {
         try {
             val allNotifications = getAllNotificationsFromRemote()
 
@@ -28,6 +33,8 @@ class NotificationD2Repository(
 
             preferenceProvider.saveAsJson(Preference.NOTIFICATIONS, userNotifications)
 
+            emit(Unit)
+
             Timber.d("Notifications synced")
             Timber.d("Notifications: $userNotifications")
 
@@ -36,64 +43,65 @@ class NotificationD2Repository(
         }
     }
 
-    override fun get(): List<Notification> {
-
+    override fun get(): Flow<List<Notification>> = flow {
         val listStringType = object : TypeToken<List<Notification>>() {}
 
-        return preferenceProvider.getObjectFromJson(
+        val notifications = preferenceProvider.getObjectFromJson(
             Preference.NOTIFICATIONS,
             listStringType,
             listOf()
         )
+
+        emit(notifications)
     }
 
-    override fun getById(id: String): Notification? {
-        sync()
-        val notifications = get()
-
-        return notifications.find { it.id == id }
-    }
-
-    override fun save(notification: Notification) {
+    override fun getById(id: String): Flow<Notification?> = flow {
         val notifications = getAllNotificationsFromRemote()
 
-        val notificationUpdated = notifications.map {
-            if (it.id == notification.id) {
-                notification
-            } else {
-                it
+        val notification = notifications.find { it.id == id }
+
+        emit(notification)
+    }
+
+    override fun save(notification: Notification): Flow<Unit> = flow {
+        try {
+            val notifications = getAllNotificationsFromRemote().map {
+                if (it.id == notification.id) {
+                    notification
+                } else {
+                    it
+                }
             }
+
+            notificationsApi.postData(notifications)
+
+            emit(Unit)
+
+        }catch (e: Exception){
+            Timber.e("Error updating notifications: $e")
         }
+    }.flatMapConcat { sync() }
 
-        val response = notificationsApi.postData(notificationUpdated).execute()
+    private suspend fun getAllNotificationsFromRemote(): List<Notification> {
+        try {
+            val notifications = notificationsApi.getData()
 
-        if (response.isSuccessful) {
-            sync()
-        } else {
-            Timber.e("Error updating notifications: ${response.errorBody()}")
+            return notifications
+        } catch (e: Exception) {
+            Timber.e("Error getting notifications: $e")
+            return emptyList()
         }
     }
 
-    private fun getAllNotificationsFromRemote(): List<Notification> {
-        val notificationsResponse = notificationsApi.getData().execute()
+    private suspend fun getUserGroups(): UserGroups {
+        try {
+            val userGroups =
+                userGroupsApi.getData(d2.userModule().user().blockingGet()!!.uid())
 
-        return if (notificationsResponse.isSuccessful) {
-            notificationsResponse.body() ?: listOf()
-        } else {
-            Timber.e("Error getting notifications: ${notificationsResponse.errorBody()}")
-            emptyList()
-        }
-    }
-
-    private fun getUserGroups(): UserGroups {
-        val userGroupsResponse =
-            userGroupsApi.getData(d2.userModule().user().blockingGet()!!.uid()).execute()
-
-        return if (userGroupsResponse.isSuccessful) {
-            userGroupsResponse.body() ?: UserGroups(listOf())
-        } else {
-            Timber.e("Error getting userGroups: ${userGroupsResponse.errorBody()}")
-            UserGroups(listOf())
+            return userGroups
+        } catch (e: Exception) {
+            Timber.e("Error getting userGroups: $e")
+            return UserGroups(listOf())
         }
     }
 
@@ -102,28 +110,35 @@ class NotificationD2Repository(
         userGroups: List<Ref>
     ): List<Notification> {
         val userGroupIds = userGroups.map { it.id }
+        val userId = d2.userModule().user().blockingGet()!!.uid()
 
         val nonReadByUserNotifications = allNotifications.filter { notification ->
             notification.readBy.none { readBy ->
-                readBy.id == d2.userModule().user().blockingGet()!!.uid()
+                readBy.id == userId
             }
         }
 
         val notificationsByAll = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.wildcard == "ALL"
+            notification.recipients.wildcard.lowercase() == "ALL".lowercase()
         }
 
         val notificationsByUserGroup = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.userGroups.any { userGroupIds.contains(it.id) }
+            notification.recipients.userGroups.any { userGroupIds.contains(it.id) } &&
+                    isForAndroid(notification)
         }
 
         val notificationsByUser = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.users.any {
-                it.id == d2.userModule().user().blockingGet()!!.uid()
-            }
+            notification.recipients.users.any { it.id == userId } && isForAndroid(notification)
         }
 
-        return notificationsByAll + notificationsByUserGroup + notificationsByUser
+        return (notificationsByAll + notificationsByUserGroup + notificationsByUser).distinct()
+    }
+
+    private fun isForAndroid(notification: Notification): Boolean {
+        return notification.recipients.wildcard.lowercase() == "Android".lowercase() ||
+                notification.recipients.wildcard == "" ||
+                notification.recipients.wildcard.lowercase() == "BOTH".lowercase()
     }
 }
+
 
