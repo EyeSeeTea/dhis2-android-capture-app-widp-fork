@@ -28,8 +28,10 @@ class NotificationD2Repository(
 
             val userGroups = getUserGroups()
 
-            val userNotifications =
-                getNotificationsForCurrentUser(allNotifications, userGroups.userGroups)
+            val userNotifications = getNotificationsForCurrentUser(
+                allNotifications,
+                userGroups.userGroups
+            )
 
             preferenceProvider.saveAsJson(Preference.NOTIFICATIONS, userNotifications)
 
@@ -119,12 +121,12 @@ class NotificationD2Repository(
         }
 
         val notificationsByAll = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.wildcard.lowercase() == "ALL".lowercase()
+            notification.recipients.wildcard.lowercase() == "ALL".lowercase() || notification.recipients.wildcard.lowercase().contains("ALL".lowercase())
         }
 
         val notificationsByUserGroup = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.userGroups.any { userGroupIds.contains(it.id) } &&
-                    isForAndroid(notification)
+            notification.recipients.userGroups.any {
+                userGroupIds.contains(it.id) } && isForAndroid(notification)
         }
 
         val notificationsByUser = nonReadByUserNotifications.filter { notification ->
@@ -137,7 +139,9 @@ class NotificationD2Repository(
     private fun isForAndroid(notification: Notification): Boolean {
         return notification.recipients.wildcard.lowercase() == "Android".lowercase() ||
                 notification.recipients.wildcard == "" ||
-                notification.recipients.wildcard.lowercase() == "BOTH".lowercase()
+                notification.recipients.wildcard.lowercase() == "BOTH".lowercase() ||
+            notification.recipients.wildcard.lowercase().contains("Android".lowercase()) ||
+            notification.recipients.wildcard.lowercase().contains("BOTH".lowercase())
     }
 }
 
