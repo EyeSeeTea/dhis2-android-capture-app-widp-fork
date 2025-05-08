@@ -28,10 +28,7 @@ class NotificationD2Repository(
 
             val userGroups = getUserGroups()
 
-            val userNotifications = getNotificationsForCurrentUser(
-                allNotifications,
-                userGroups.userGroups
-            )
+            val userNotifications = getNotificationsForCurrentUser(allNotifications, userGroups.userGroups)
 
             preferenceProvider.saveAsJson(Preference.NOTIFICATIONS, userNotifications)
 
@@ -137,15 +134,6 @@ class NotificationD2Repository(
         return (notificationsByAll + notificationsByUserGroup + notificationsByUser).distinct()
     }
 
-    /**
-      * Check if the notification is for Web
-      * ALL → all users irrespective of groups
-      * Android → only android users respecting user groups
-      * Web, only web users respecting user groups
-      * Both, both android and web users respecting user groups
-      * @param notification The notification to check
-      * @return true if the notification is for Web, false otherwise
-      **/
     private fun isForAndroid(notification: Notification): Boolean {
         val wildcard = notification.recipients.wildcard.lowercase()
         return wildcard == "Android".lowercase() ||
