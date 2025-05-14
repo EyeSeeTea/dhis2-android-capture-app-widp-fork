@@ -10,6 +10,9 @@ import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference
 import org.dhis2.usescases.notifications.domain.Notification
 import org.dhis2.usescases.notifications.domain.NotificationRepository
+import org.dhis2.usescases.notifications.domain.NotificationWildcard.ALL
+import org.dhis2.usescases.notifications.domain.NotificationWildcard.ANDROID
+import org.dhis2.usescases.notifications.domain.NotificationWildcard.BOTH
 import org.dhis2.usescases.notifications.domain.Ref
 import org.dhis2.usescases.notifications.domain.UserGroups
 import org.hisp.dhis.android.core.D2
@@ -28,7 +31,8 @@ class NotificationD2Repository(
 
             val userGroups = getUserGroups()
 
-            val userNotifications = getNotificationsForCurrentUser(allNotifications, userGroups.userGroups)
+            val userNotifications =
+                getNotificationsForCurrentUser(allNotifications, userGroups.userGroups)
 
             preferenceProvider.saveAsJson(Preference.NOTIFICATIONS, userNotifications)
 
@@ -83,9 +87,7 @@ class NotificationD2Repository(
 
     private suspend fun getAllNotificationsFromRemote(): List<Notification> {
         try {
-            val notifications = notificationsApi.getData()
-
-            return notifications
+            return notificationsApi.getData()
         } catch (e: Exception) {
             Timber.e("Error getting notifications: $e")
             return emptyList()
@@ -94,10 +96,8 @@ class NotificationD2Repository(
 
     private suspend fun getUserGroups(): UserGroups {
         try {
-            val userGroups =
-                userGroupsApi.getData(d2.userModule().user().blockingGet()!!.uid())
-
-            return userGroups
+            return userGroupsApi
+                .getData(d2.userModule().user().blockingGet()!!.uid())
         } catch (e: Exception) {
             Timber.e("Error getting userGroups: $e")
             return UserGroups(listOf())
@@ -118,8 +118,7 @@ class NotificationD2Repository(
         }
 
         val notificationsByAll = nonReadByUserNotifications.filter { notification ->
-            val wildcard = notification.recipients.wildcard.lowercase()
-            wildcard == "ALL".lowercase() || wildcard.contains("ALL".lowercase())
+            notification.recipients.getWildcard() == ALL
         }
 
         val notificationsByUserGroup = nonReadByUserNotifications.filter { notification ->
@@ -135,12 +134,10 @@ class NotificationD2Repository(
     }
 
     private fun isForAndroid(notification: Notification): Boolean {
-        val wildcard = notification.recipients.wildcard.lowercase()
-        return wildcard == "Android".lowercase() ||
-            wildcard.isEmpty() ||
-            wildcard == "BOTH".lowercase() ||
-            wildcard.contains("Android".lowercase()) ||
-            wildcard.contains("BOTH".lowercase())
+        return notification.recipients.getWildcard() in listOf(
+            ANDROID,
+            BOTH,
+        )
     }
 }
 

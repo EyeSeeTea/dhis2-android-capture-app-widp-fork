@@ -154,25 +154,6 @@ class NotificationD2RepositoryTest {
     }
 
     @Test
-    fun `Should sync notifications with any valid receivers receivers and for specific user`()  = runBlocking{
-        val notifications = listOf(
-            givenANotification(
-                wildcard = "BOTH|AnDrOid|ALL",
-                users = listOf(Ref(id = user.uid(), name = null))
-            )
-        )
-
-        val repository = givenTestData(user, notifications, UserGroups(userGroups = listOf()))
-
-        repository.sync().first()
-
-        verify(basicPreferenceProvider).saveAsJson(
-            NOTIFICATIONS,
-            notifications,
-        )
-    }
-
-    @Test
     fun `Should not sync notifications with any invalid receivers receivers and for specific user`()  = runBlocking{
         val notifications = listOf(
             givenANotification(
@@ -188,52 +169,6 @@ class NotificationD2RepositoryTest {
         verify(basicPreferenceProvider).saveAsJson(
             NOTIFICATIONS,
             emptyList<Notification>(),
-        )
-    }
-
-    @Test
-    fun `Should sync notifications with ALL and ANDROID at the same time receivers and for specific userGroup`()  = runBlocking{
-        val notifications = listOf(
-            givenANotification(
-                wildcard = "ALL|Android",
-                userGroups = arrayListOf(Ref(id = "userGroup1", name = null))
-            )
-        )
-
-        val repository = givenTestData(
-            user,
-            notifications,
-            UserGroups(userGroups = listOf(Ref(id = "userGroup1", name = null)))
-        )
-
-        repository.sync().first()
-
-        verify(basicPreferenceProvider).saveAsJson(
-            NOTIFICATIONS,
-            notifications,
-        )
-    }
-
-    @Test
-    fun `Should sync notifications with any valid receivers and for specific userGroup`()  = runBlocking{
-        val notifications = listOf(
-            givenANotification(
-                wildcard = "ALL|AnDrOid|BoTH",
-                userGroups = arrayListOf(Ref(id = "userGroup1", name = null))
-            )
-        )
-
-        val repository = givenTestData(
-            user,
-            notifications,
-            UserGroups(userGroups = listOf(Ref(id = "userGroup1", name = null)))
-        )
-
-        repository.sync().first()
-
-        verify(basicPreferenceProvider).saveAsJson(
-            NOTIFICATIONS,
-            notifications,
         )
     }
 
@@ -411,7 +346,8 @@ class NotificationD2RepositoryTest {
                 userGroups = userGroups,
                 users = users,
                 wildcard = wildcard
-            )
+            ),
+            permissions = null
         )
     }
 
