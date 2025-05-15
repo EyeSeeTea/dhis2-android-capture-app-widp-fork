@@ -10,9 +10,6 @@ import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference
 import org.dhis2.usescases.notifications.domain.Notification
 import org.dhis2.usescases.notifications.domain.NotificationRepository
-import org.dhis2.usescases.notifications.domain.NotificationWildcard.ALL
-import org.dhis2.usescases.notifications.domain.NotificationWildcard.ANDROID
-import org.dhis2.usescases.notifications.domain.NotificationWildcard.BOTH
 import org.dhis2.usescases.notifications.domain.Ref
 import org.dhis2.usescases.notifications.domain.UserGroups
 import org.hisp.dhis.android.core.D2
@@ -118,12 +115,12 @@ class NotificationD2Repository(
         }
 
         val notificationsByAll = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.getWildcard() == ALL
+            notification.recipients.wildcard.lowercase() == "ALL".lowercase()
         }
 
         val notificationsByUserGroup = nonReadByUserNotifications.filter { notification ->
-            notification.recipients.userGroups.any {
-                userGroupIds.contains(it.id) } && isForAndroid(notification)
+            notification.recipients.userGroups.any { userGroupIds.contains(it.id) } &&
+                    isForAndroid(notification)
         }
 
         val notificationsByUser = nonReadByUserNotifications.filter { notification ->
@@ -134,10 +131,9 @@ class NotificationD2Repository(
     }
 
     private fun isForAndroid(notification: Notification): Boolean {
-        return notification.recipients.getWildcard() in listOf(
-            ANDROID,
-            BOTH,
-        )
+        return notification.recipients.wildcard.lowercase() == "Android".lowercase() ||
+                notification.recipients.wildcard == "" ||
+                notification.recipients.wildcard.lowercase() == "BOTH".lowercase()
     }
 }
 
