@@ -84,9 +84,7 @@ class NotificationD2Repository(
 
     private suspend fun getAllNotificationsFromRemote(): List<Notification> {
         try {
-            val notifications = notificationsApi.getData()
-
-            return notifications
+            return notificationsApi.getData()
         } catch (e: Exception) {
             Timber.e("Error getting notifications: $e")
             return emptyList()
@@ -95,10 +93,8 @@ class NotificationD2Repository(
 
     private suspend fun getUserGroups(): UserGroups {
         try {
-            val userGroups =
-                userGroupsApi.getData(d2.userModule().user().blockingGet()!!.uid())
-
-            return userGroups
+            return userGroupsApi
+                .getData(d2.userModule().user().blockingGet()!!.uid())
         } catch (e: Exception) {
             Timber.e("Error getting userGroups: $e")
             return UserGroups(listOf())

@@ -304,7 +304,8 @@ class NotificationD2RepositoryTest {
                 userGroups = userGroups,
                 users = users,
                 wildcard = wildcard
-            )
+            ),
+            permissions = null
         )
     }
 
