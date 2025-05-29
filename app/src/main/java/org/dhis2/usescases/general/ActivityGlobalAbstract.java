@@ -41,6 +41,8 @@ import org.dhis2.utils.analytics.AnalyticsHelper;
 import org.dhis2.utils.granularsync.SyncStatusDialog;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Timer;
 
 import javax.inject.Inject;
 
@@ -48,6 +50,7 @@ import io.noties.markwon.Markwon;
 import io.reactivex.Observable;
 import io.reactivex.subjects.BehaviorSubject;
 import kotlin.Unit;
+import timber.log.Timber;
 
 
 public abstract class ActivityGlobalAbstract extends SessionManagerActivity
@@ -246,8 +249,9 @@ public abstract class ActivityGlobalAbstract extends SessionManagerActivity
     }
 
     private void showNotification(Notification notification) {
-        Markwon markwon = Markwon.create(getContext());
-        String content = String.valueOf(markwon.toMarkdown(notification.getContent()));
+
+
+        String content = getNotificationContent(notification);
 
         new MaterialAlertDialogBuilder(this, R.style.DhisMaterialDialog)
                 .setTitle("Notification")
@@ -257,5 +261,17 @@ public abstract class ActivityGlobalAbstract extends SessionManagerActivity
                 })
                 .setCancelable(true)
                 .show();
+    }
+
+    private String getNotificationContent(Notification notification) {
+        Markwon markwon = Markwon.create(getContext());
+
+        String language = Locale.getDefault().getLanguage();
+
+        if (notification.getTranslations() != null && notification.getTranslations().containsKey(language)) {
+            return String.valueOf(markwon.toMarkdown(notification.getTranslations().get(language)));
+        } else  {
+            return String.valueOf(markwon.toMarkdown(String.valueOf(markwon.toMarkdown(notification.getContent()))));
+        }
     }
 }
