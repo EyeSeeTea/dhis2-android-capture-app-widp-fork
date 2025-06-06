@@ -4,7 +4,6 @@ import NotificationsApi
 import UserGroupsApi
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
 import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference
@@ -26,17 +25,9 @@ class NotificationD2Repository(
         try {
             val allNotifications = getAllNotificationsFromRemote()
 
-            val userGroups = getUserGroups()
-
-            val userNotifications =
-                getNotificationsForCurrentUser(allNotifications, userGroups.userGroups)
-
-            preferenceProvider.saveAsJson(Preference.NOTIFICATIONS, userNotifications)
+            saveUserNotificationsInCache(allNotifications)
 
             emit(Unit)
-
-            Timber.d("Notifications synced")
-            Timber.d("Notifications: $userNotifications")
 
         } catch (e: Exception) {
             Timber.e(e)
@@ -75,12 +66,14 @@ class NotificationD2Repository(
 
             notificationsApi.postData(notifications)
 
+            saveUserNotificationsInCache(notifications)
+
             emit(Unit)
 
         }catch (e: Exception){
             Timber.e("Error updating notifications: $e")
         }
-    }.flatMapConcat { sync() }
+    }
 
     private suspend fun getAllNotificationsFromRemote(): List<Notification> {
         try {
@@ -91,10 +84,21 @@ class NotificationD2Repository(
         }
     }
 
+    private suspend fun saveUserNotificationsInCache(allNotifications: List<Notification>) {
+        val userGroups = getUserGroups()
+
+        val userNotifications =
+            getNotificationsForCurrentUser(allNotifications, userGroups.userGroups)
+
+        preferenceProvider.saveAsJson(Preference.NOTIFICATIONS, userNotifications)
+
+        Timber.d("Notifications saved in cache")
+        Timber.d("Notifications: $userNotifications")
+    }
+
     private suspend fun getUserGroups(): UserGroups {
         try {
-            return userGroupsApi
-                .getData(d2.userModule().user().blockingGet()!!.uid())
+            return userGroupsApi.getData()
         } catch (e: Exception) {
             Timber.e("Error getting userGroups: $e")
             return UserGroups(listOf())
