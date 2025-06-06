@@ -98,8 +98,7 @@ class NotificationD2Repository(
 
     private suspend fun getUserGroups(): UserGroups {
         try {
-            return userGroupsApi
-                .getData(d2.userModule().user().blockingGet()!!.uid())
+            return userGroupsApi.getData()
         } catch (e: Exception) {
             Timber.e("Error getting userGroups: $e")
             return UserGroups(listOf())
