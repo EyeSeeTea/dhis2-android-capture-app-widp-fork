@@ -19,9 +19,9 @@ class NotificationsApi (private val client: HttpServiceClient) {
 }
 
 class UserGroupsApi (private val client: HttpServiceClient) {
-    suspend fun getData( userId:String): UserGroups {
+    suspend fun getData(): UserGroups {
         return client.get {
-            url("users/$userId?fields=userGroups")
+            url("me?fields=userGroups")
         }
     }
 }
