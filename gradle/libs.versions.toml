@@ -1,7 +1,7 @@
 [versions]
 sdk = "34"
 minSdk = "21"
-vCode = "138"
+vCode = "139"
 vName = "3.1.0.1-widp-fork-2"
 gradle = "8.6.1"
 kotlin = '2.0.20'
