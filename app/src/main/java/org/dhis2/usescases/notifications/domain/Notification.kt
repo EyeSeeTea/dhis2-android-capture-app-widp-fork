@@ -9,6 +9,7 @@ data class Notification(
     val readBy: List<ReadBy>,
     val recipients: Recipients,
     val permissions: Permissions?,
+    val translations: Map<String, String>?
 )
 
 data class ReadBy(

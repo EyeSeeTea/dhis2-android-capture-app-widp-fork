@@ -1,8 +1,8 @@
 [versions]
 sdk = "34"
 minSdk = "21"
-vCode = "139"
-vName = "3.1.0.1-widp-fork-2"
+vCode = "140"
+vName = "3.1.0.1-widp-fork-3"
 gradle = "8.6.1"
 kotlin = '2.0.20'
 hilt = '2.47'
