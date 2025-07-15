@@ -2,13 +2,13 @@
 sdk = "34"
 minSdk = "21"
 vCode = "140"
-vName = "3.1.0.1-widp-fork-3"
+vName = "3.1.0.1-widp-fork-4"
 gradle = "8.6.1"
 kotlin = '2.0.20'
 hilt = '2.47'
 jacoco = '0.8.10'
 designSystem = "0.4.0.1"
-dhis2sdk = "1.11.0.1-eyeseetea-fork-1"
+dhis2sdk = "1.11.0.1-eyeseetea-fork-3"
 ruleEngine = "3.0.0"
 expressionParser = "1.1.0"
 appcompat = "1.6.1"
