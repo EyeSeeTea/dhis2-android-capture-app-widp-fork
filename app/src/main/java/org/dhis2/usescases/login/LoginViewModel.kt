@@ -370,7 +370,7 @@ class LoginViewModel(
             userManager?.d2?.userModule()?.blockingLogOut()
             logIn()
         } else {
-            if (throwable is D2Error && throwable.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE && _twoFactorCodeVisible.value == false) {
+            if (isTimeBasedOneTimePasswordError(throwable) && _twoFactorCodeVisible.value == false) {
                 _twoFactorCodeVisible.postValue(true)
             } else {
                 view.renderError(throwable)
@@ -566,4 +566,9 @@ class LoginViewModel(
         biometricController.hasBiometric() &&
                 !preferenceProvider.areCredentialsSet() &&
                 hasAccounts.value == false
+
+
+    private fun isTimeBasedOneTimePasswordError(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE ||
+                error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE_TOTP)
 }
