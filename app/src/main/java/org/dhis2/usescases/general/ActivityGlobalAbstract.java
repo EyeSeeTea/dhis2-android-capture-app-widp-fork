@@ -25,16 +25,11 @@ import org.dhis2.commons.ActivityResultObservable;
 import org.dhis2.commons.Constants;
 import org.dhis2.commons.dialogs.CustomDialog;
 import org.dhis2.commons.popupmenu.AppMenuHelper;
-import org.dhis2.commons.reporting.CrashReportController;
+import org.dhis2.mobile.commons.reporting.CrashReportController;
 import org.dhis2.data.server.ServerComponent;
-import org.dhis2.usescases.login.LoginActivity;
-import org.dhis2.usescases.login.accounts.AccountsActivity;
-import org.dhis2.usescases.main.MainActivity;
 import org.dhis2.usescases.notifications.domain.Notification;
 import org.dhis2.usescases.notifications.presentation.NotificationsPresenter;
 import org.dhis2.usescases.notifications.presentation.NotificationsView;
-import org.dhis2.usescases.qrScanner.ScanActivity;
-import org.dhis2.usescases.splash.SplashActivity;
 import org.dhis2.utils.HelpManager;
 import org.dhis2.utils.OnDialogClickListener;
 import org.dhis2.utils.analytics.AnalyticsHelper;
@@ -42,15 +37,11 @@ import org.dhis2.utils.granularsync.SyncStatusDialog;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Timer;
 
 import javax.inject.Inject;
 
 import io.noties.markwon.Markwon;
-import io.reactivex.Observable;
-import io.reactivex.subjects.BehaviorSubject;
 import kotlin.Unit;
-import timber.log.Timber;
 
 
 public abstract class ActivityGlobalAbstract extends SessionManagerActivity
