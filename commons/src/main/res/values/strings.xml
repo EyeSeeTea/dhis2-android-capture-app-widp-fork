@@ -328,6 +328,8 @@
     <string name="enrollment_date_edition_warning_event_label">There are planned %s that won\'t be re-scheduled</string>
     <string name="enrollment_reopen">re-open</string>
     <string name="incorrect_two_factor_code">Incorrect two factor code</string>
+    <string name="incorrect_two_factor_code_email">Incorrect authentication code</string>
+    <string name="email_two_factor_code_sent">Email with two factor code sent</string>
 
     <string name="sync_retry">Retry sync</string>
     <string name="syncing">Synchronizing...</string>

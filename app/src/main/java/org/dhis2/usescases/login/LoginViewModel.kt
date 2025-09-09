@@ -67,7 +67,8 @@ class LoginViewModel(
     val serverUrl = MutableLiveData<String>()
     val userName = MutableLiveData<String>()
     val password = MutableLiveData<String>()
-    val twoFactorCode = MutableLiveData<String>()
+    val tpopTwoFactorCode = MutableLiveData<String>()
+    val emailTwoFactorCode = MutableLiveData<String>()
     val isDataComplete = MutableLiveData<Boolean>()
     val isTestingEnvironment = MutableLiveData<Trio<String, String, String>>()
     private var testingCredentials: List<TestingCredential> = emptyList()
@@ -86,8 +87,11 @@ class LoginViewModel(
     private val _autoCompleteData = MutableLiveData<Pair<List<String>, List<String>>>()
     val autoCompleteData: LiveData<Pair<List<String>, List<String>>> = _autoCompleteData
 
-    private val _twoFactorCodeVisible = MutableLiveData(false)
-    val twoFactorCodeVisible: LiveData<Boolean> = _twoFactorCodeVisible
+    private val _totpTwoFactorCodeVisible = MutableLiveData(false)
+    val totpTwoFactorCodeVisible: LiveData<Boolean> = _totpTwoFactorCodeVisible
+
+    private val _emailTwoFactorCodeVisible = MutableLiveData(false)
+    val emailTwoFactorCodeVisible: LiveData<Boolean> = _emailTwoFactorCodeVisible
 
     init {
         this.userManager?.let {
@@ -223,7 +227,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        twoFactorCode.value,
+                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value,
                     )
                         .map {
                             run {
@@ -370,9 +374,12 @@ class LoginViewModel(
             userManager?.d2?.userModule()?.blockingLogOut()
             logIn()
         } else {
-            if (isTimeBasedOneTimePasswordError(throwable) && _twoFactorCodeVisible.value == false) {
-                _twoFactorCodeVisible.postValue(true)
-            } else {
+            if (isTotpTwoFactorCodeError(throwable) && _totpTwoFactorCodeVisible.value == false) {
+                _totpTwoFactorCodeVisible.postValue(true)
+            } else if (isEmailTwoFactoCodeSent(throwable)) {
+                _emailTwoFactorCodeVisible.postValue(true)
+            }
+            else {
                 view.renderError(throwable)
             }
         }
@@ -492,9 +499,16 @@ class LoginViewModel(
         }
     }
 
-    fun onTwoFactorCodeChanged(twoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
+    fun onTotpTwoFactorCodeChanged(totpTwoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
         if (password.toString() != this.password.value) {
-            this.twoFactorCode.value = twoFactorCode.toString()
+            this.tpopTwoFactorCode.value = totpTwoFactorCode.toString()
+            checkData()
+        }
+    }
+
+    fun onEmailTwoFactorCodeChanged(emailTwoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
+        if (password.toString() != this.password.value) {
+            this.emailTwoFactorCode.value = emailTwoFactorCode.toString()
             checkData()
         }
     }
@@ -568,7 +582,10 @@ class LoginViewModel(
                 hasAccounts.value == false
 
 
-    private fun isTimeBasedOneTimePasswordError(error: Throwable): Boolean =
+    private fun isTotpTwoFactorCodeError(error: Throwable): Boolean =
         error is D2Error && (error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE ||
                 error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE_TOTP)
+
+    private fun isEmailTwoFactoCodeSent(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.EMAIL_TWO_FACTOR_CODE_SENT)
 }

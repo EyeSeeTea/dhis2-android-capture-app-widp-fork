@@ -217,6 +217,15 @@ class D2ErrorUtils(
                 context.getString(
                     R.string.incorrect_two_factor_code
                 )
+            D2ErrorCode.EMAIL_TWO_FACTOR_CODE_SENT->
+                context.getString(
+                    R.string.email_two_factor_code_sent
+                )
+
+            D2ErrorCode.INCORRECT_TWO_FACTOR_CODE_EMAIL->
+                context.getString(
+                    R.string.incorrect_two_factor_code_email
+                )
         }
     }
 

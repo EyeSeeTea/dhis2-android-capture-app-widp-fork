@@ -218,7 +218,9 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
         presenter.isDataComplete.observe(this) { this.setLoginVisibility(it) }
 
-        presenter.twoFactorCodeVisible.observe(this) { this.setTwoFactorCodeVisibility(it) }
+        presenter.totpTwoFactorCodeVisible.observe(this) { this.setTotpTwoFactorCodeVisibility(it) }
+
+        presenter.emailTwoFactorCodeVisible.observe(this) { this.setEmailTwoFactorCodeVisibility(it) }
 
         presenter.isTestingEnvironment.observe(
             this,
@@ -258,7 +260,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
         binding.clearPassButton.setOnClickListener { binding.userPassEdit.text = null }
         binding.clearUserNameButton.setOnClickListener { binding.userNameEdit.text = null }
         binding.clearUrl.setOnClickListener { binding.serverUrlEdit.text = null }
-        binding.clearTwoFactoButton.setOnClickListener { binding.userTwoFactorCodeEdit.text = null }
+        binding.clearTotpTwoFactorCodeButton.setOnClickListener { binding.totpTwoFactorCodeEdit.text = null }
 
         presenter.loginProgressVisible.observe(this) { show ->
             showLoginProgress(show, getString(R.string.authenticating))
@@ -358,11 +360,19 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
         binding.login.isEnabled = isVisible
     }
 
-    fun setTwoFactorCodeVisibility(isVisible: Boolean) {
+    fun setTotpTwoFactorCodeVisibility(isVisible: Boolean) {
         if (isVisible){
-            binding.twoFactoContainer.visibility = View.VISIBLE
+            binding.totpTwoFactorContainer.visibility = View.VISIBLE
         } else {
-            binding.twoFactoContainer.visibility = View.GONE
+            binding.totpTwoFactorContainer.visibility = View.GONE
+        }
+    }
+
+    fun setEmailTwoFactorCodeVisibility(isVisible: Boolean) {
+        if (isVisible){
+            binding.emailTwoFactorContainer.visibility = View.VISIBLE
+        } else {
+            binding.emailTwoFactorContainer.visibility = View.GONE
         }
     }
 
