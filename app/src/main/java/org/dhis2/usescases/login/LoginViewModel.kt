@@ -48,6 +48,15 @@ import java.io.File
 
 const val VERSION = "version"
 
+sealed class TwoFactorVerificationState(val code: String) {
+    data class TotpVerification(private val toptCode: String) : TwoFactorVerificationState(toptCode)
+    data class EmailVerification(private val emailCode: String, val resendEnabled: Boolean) :
+        TwoFactorVerificationState(emailCode)
+
+    data class SmsVerification(private val smsCode: String, val resendEnabled: Boolean) :
+        TwoFactorVerificationState(smsCode)
+}
+
 class LoginViewModel(
     private val view: LoginContracts.View,
     private val preferenceProvider: PreferenceProvider,
@@ -87,24 +96,9 @@ class LoginViewModel(
     private val _autoCompleteData = MutableLiveData<Pair<List<String>, List<String>>>()
     val autoCompleteData: LiveData<Pair<List<String>, List<String>>> = _autoCompleteData
 
-    val tpopTwoFactorCode = MutableLiveData<String>()
-    val emailTwoFactorCode = MutableLiveData<String>()
-    val smsTwoFactorCode = MutableLiveData<String>()
-
-    private val _totpTwoFactorCodeVisible = MutableLiveData(false)
-    val totpTwoFactorCodeVisible: LiveData<Boolean> = _totpTwoFactorCodeVisible
-
-    private val _emailTwoFactorCodeVisible = MutableLiveData(false)
-    val emailTwoFactorCodeVisible: LiveData<Boolean> = _emailTwoFactorCodeVisible
-
-    private val _emailTwoFactorResendEnable = MutableLiveData(false)
-    val emailTwoFactorResendEnable: LiveData<Boolean> = _emailTwoFactorResendEnable
-
-    private val _smsTwoFactorCodeVisible = MutableLiveData(false)
-    val smsTwoFactorCodeVisible: LiveData<Boolean> = _smsTwoFactorCodeVisible
-
-    private val _smsTwoFactorResendEnable = MutableLiveData(false)
-    val smsTwoFactorResendEnable: LiveData<Boolean> = _smsTwoFactorResendEnable
+    private val _twoFactorVerificationState = MutableLiveData<TwoFactorVerificationState?>()
+    val twoFactorVerificationState: LiveData<TwoFactorVerificationState?> =
+        _twoFactorVerificationState
 
     init {
         this.userManager?.let {
@@ -240,7 +234,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value ?:smsTwoFactorCode.value,
+                        twoFactorVerificationState.value?.code
                     )
                         .map {
                             run {
@@ -387,14 +381,24 @@ class LoginViewModel(
             userManager?.d2?.userModule()?.blockingLogOut()
             logIn()
         } else {
-            if (isTotpTwoFactorCodeError(throwable) && _totpTwoFactorCodeVisible.value == false) {
-                _totpTwoFactorCodeVisible.postValue(true)
+            if (isTotpTwoFactorCodeError(throwable) && _twoFactorVerificationState.value == null) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.TotpVerification(toptCode = "")
+                )
             } else if (isEmailTwoFactoCodeSent(throwable)) {
-                _emailTwoFactorCodeVisible.postValue(true)
-                _emailTwoFactorResendEnable.postValue(true)
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.EmailVerification(
+                        emailCode = "",
+                        resendEnabled = true
+                    )
+                )
             } else if (isSMSTwoFactoCodeSent(throwable)) {
-                _smsTwoFactorCodeVisible.postValue(true)
-                _smsTwoFactorResendEnable.postValue(true)
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.SmsVerification(
+                        smsCode = "",
+                        resendEnabled = true
+                    )
+                )
             } else {
                 view.renderError(throwable)
             }
@@ -515,42 +519,6 @@ class LoginViewModel(
         }
     }
 
-    fun onTotpTwoFactorCodeChanged(
-        totpTwoFactorCode: CharSequence,
-        start: Int,
-        before: Int,
-        count: Int
-    ) {
-        if (tpopTwoFactorCode.toString() != this.tpopTwoFactorCode.value) {
-            this.tpopTwoFactorCode.value = totpTwoFactorCode.toString()
-            checkData()
-        }
-    }
-
-    fun onEmailTwoFactorCodeChanged(
-        emailTwoFactorCode: CharSequence,
-        start: Int,
-        before: Int,
-        count: Int
-    ) {
-        if (emailTwoFactorCode.toString() != this.emailTwoFactorCode.value) {
-            this.emailTwoFactorCode.value = emailTwoFactorCode.toString()
-            checkData()
-        }
-    }
-
-    fun onSMSTwoFactorCodeChanged(
-        smsTwoFactorCode: CharSequence,
-        start: Int,
-        before: Int,
-        count: Int
-    ) {
-        if (smsTwoFactorCode.toString() != this.smsTwoFactorCode.value) {
-            this.emailTwoFactorCode.value = emailTwoFactorCode.toString()
-            checkData()
-        }
-    }
-
     private fun checkData() {
         val newValue = !serverUrl.value.isNullOrEmpty() &&
                 !userName.value.isNullOrEmpty() &&
@@ -620,6 +588,56 @@ class LoginViewModel(
                 hasAccounts.value == false
 
     // EyeSeeTea customization - two factor authentication
+    fun onTotpTwoFactorCodeChanged(
+        totpTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (totpTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.TotpVerification(totpTwoFactorCode.toString())
+            )
+
+            checkData()
+        }
+    }
+
+    fun onEmailTwoFactorCodeChanged(
+        emailTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (emailTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.EmailVerification(
+                    emailCode = emailTwoFactorCode.toString(),
+                    resendEnabled = (_twoFactorVerificationState.value as TwoFactorVerificationState.EmailVerification).resendEnabled
+                )
+            )
+
+            checkData()
+        }
+    }
+
+    fun onSMSTwoFactorCodeChanged(
+        smsTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (smsTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.SmsVerification(
+                    smsCode = smsTwoFactorCode.toString(),
+                    resendEnabled = (_twoFactorVerificationState.value as TwoFactorVerificationState.SmsVerification).resendEnabled
+                )
+            )
+
+            checkData()
+        }
+    }
 
     fun onResendEmailTwoFactorClick() {
         disableResendEmail30seconds()
@@ -631,7 +649,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value,
+                        _twoFactorVerificationState.value?.code,
                     )
                 }
                 .subscribeOn(schedulers.io())
@@ -657,7 +675,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value,
+                        _twoFactorVerificationState.value?.code,
                     )
                 }
                 .subscribeOn(schedulers.io())
@@ -674,22 +692,46 @@ class LoginViewModel(
     }
 
     private fun disableResendEmail30seconds() {
-        _emailTwoFactorResendEnable.postValue(false)
+        val current = _twoFactorVerificationState.value as TwoFactorVerificationState.EmailVerification
+
+        _twoFactorVerificationState.postValue(
+            TwoFactorVerificationState.EmailVerification(
+                emailCode = current.code,
+                resendEnabled = false
+            )
+        )
 
         //enable after 30 seconds
         viewModelScope.launch {
             delay(30000)
-            _emailTwoFactorResendEnable.postValue(true)
+            _twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.EmailVerification(
+                    emailCode = current.code,
+                    resendEnabled = true
+                )
+            )
         }
     }
 
     private fun disableResendSMS30seconds() {
-        _smsTwoFactorResendEnable.postValue(false)
+        val current = _twoFactorVerificationState.value as TwoFactorVerificationState.SmsVerification
+
+        _twoFactorVerificationState.postValue(
+            TwoFactorVerificationState.SmsVerification(
+                smsCode = current.code,
+                resendEnabled = false
+            )
+        )
 
         //enable after 30 seconds
         viewModelScope.launch {
             delay(30000)
-            _smsTwoFactorResendEnable.postValue(true)
+            _twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.SmsVerification(
+                    smsCode = current.code,
+                    resendEnabled = true
+                )
+            )
         }
     }
 

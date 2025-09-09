@@ -224,15 +224,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
         presenter.isDataComplete.observe(this) { this.setLoginVisibility(it) }
 
         // EyeSeeTea customization - 2 factor authentication
-        presenter.totpTwoFactorCodeVisible.observe(this) { this.setTotpTwoFactorCodeVisibility(it) }
-
-        presenter.emailTwoFactorCodeVisible.observe(this) { this.setEmailTwoFactorCodeVisibility(it) }
-
-        presenter.emailTwoFactorResendEnable.observe(this) { this.setEmailTwoFactorCodeEnable(it) }
-
-        presenter.smsTwoFactorCodeVisible.observe(this) { this.setSMSTwoFactorCodeVisibility(it) }
-
-        presenter.smsTwoFactorResendEnable.observe(this) { this.setSMSTwoFactorCodeEnable(it) }
+        presenter.twoFactorVerificationState.observe(this) { this.updateTwoFactor(it) }
 
         presenter.isTestingEnvironment.observe(
             this,
@@ -701,35 +693,32 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
     }
 
     // EyeSeeTea customization - two factor authentication
-    private fun setTotpTwoFactorCodeVisibility(isVisible: Boolean) {
-        if (isVisible) {
-            binding.totpTwoFactorContainer.visibility = View.VISIBLE
-        } else {
+    private fun updateTwoFactor(twoFactorState: TwoFactorVerificationState?) {
+        if (twoFactorState == null){
             binding.totpTwoFactorContainer.visibility = View.GONE
-        }
-    }
-
-    private fun setEmailTwoFactorCodeVisibility(isVisible: Boolean) {
-        if (isVisible) {
-            binding.emailTwoFactorContainer.visibility = View.VISIBLE
-        } else {
             binding.emailTwoFactorContainer.visibility = View.GONE
-        }
-    }
-
-    private fun setEmailTwoFactorCodeEnable(enable: Boolean) {
-        binding.resendEmail.isEnabled = enable
-    }
-
-    private fun setSMSTwoFactorCodeVisibility(isVisible: Boolean) {
-        if (isVisible) {
-            binding.smsTwoFactorContainer.visibility = View.VISIBLE
-        } else {
             binding.smsTwoFactorContainer.visibility = View.GONE
+            return
         }
-    }
 
-    private fun setSMSTwoFactorCodeEnable(enable: Boolean) {
-        binding.resendEmail.isEnabled = enable
+            when (twoFactorState) {
+                is TwoFactorVerificationState.TotpVerification -> {
+                    binding.totpTwoFactorContainer.visibility = View.VISIBLE
+                    binding.emailTwoFactorContainer.visibility = View.GONE
+                    binding.smsTwoFactorContainer.visibility = View.GONE
+                }
+               is  TwoFactorVerificationState.EmailVerification -> {
+                    binding.totpTwoFactorContainer.visibility = View.GONE
+                    binding.emailTwoFactorContainer.visibility = View.VISIBLE
+                    binding.smsTwoFactorContainer.visibility = View.GONE
+                   binding.resendEmail.isEnabled = twoFactorState.resendEnabled
+                }
+                is TwoFactorVerificationState.SmsVerification -> {
+                    binding.totpTwoFactorContainer.visibility = View.GONE
+                    binding.emailTwoFactorContainer.visibility = View.GONE
+                    binding.smsTwoFactorContainer.visibility = View.VISIBLE
+                    binding.resendEmail.isEnabled = twoFactorState.resendEnabled
+                }
+            }
     }
 }

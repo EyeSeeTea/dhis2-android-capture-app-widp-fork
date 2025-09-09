@@ -162,7 +162,6 @@
                     android:layout_height="wrap_content"
                     app:layout_constraintTop_toBottomOf="@id/userNameContainer">
 
-
                     <ImageView
                         android:id="@+id/passIcon"
                         android:layout_width="wrap_content"
@@ -216,7 +215,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:layout_constraintTop_toBottomOf="@id/passContainer"
-                    android:visibility="visible">
+                    android:visibility="gone">
 
                     <ImageView
                         android:id="@+id/totpTwoFactorCodeIcon"
@@ -333,8 +332,8 @@
                     android:id="@+id/smsTwoFactorContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:layout_constraintTop_toBottomOf="@id/totpTwoFactorContainer"
-                    android:visibility="visible">
+                    app:layout_constraintTop_toBottomOf="@id/emailTwoFactorContainer"
+                    android:visibility="gone">
 
                     <ImageView
                         android:id="@+id/smsTwoFactorCodeIcon"
@@ -406,7 +405,7 @@
                     android:textSize="@dimen/textSize_12"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/emailTwoFactorContainer" />
+                    app:layout_constraintTop_toBottomOf="@id/smsTwoFactorContainer" />
 
             </androidx.constraintlayout.widget.ConstraintLayout>
 
