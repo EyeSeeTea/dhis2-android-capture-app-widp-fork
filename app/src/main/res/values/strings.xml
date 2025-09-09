@@ -59,6 +59,7 @@
     <string name="totp_two_factor_code_helper_text">Enter the code from your authenticator app</string>
     <string name="email_two_factor_code_hint">Email code</string>
     <string name="email_two_factor_code_helper_text">Enter the code sent to your email</string>
+    <string name="resend_email_two_factor_code">Resend Code</string>
     <string name="log_in_button">Log In</string>
     <string name="unlock_button">Unlock session</string>
     <string name="syncing_configuration">Syncing your Configuration</string>

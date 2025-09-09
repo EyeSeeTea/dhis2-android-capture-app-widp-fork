@@ -216,7 +216,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:layout_constraintTop_toBottomOf="@id/passContainer"
-                    android:visibility="visible">
+                    android:visibility="gone">
 
                     <ImageView
                         android:id="@+id/totpTwoFactorCodeIcon"
@@ -271,7 +271,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:layout_constraintTop_toBottomOf="@id/totpTwoFactorContainer"
-                    android:visibility="gone">
+                    android:visibility="visible">
 
                     <ImageView
                         android:id="@+id/emailTwoFactorCodeIcon"
@@ -319,6 +319,16 @@
                             android:textSize="17sp" />
 
                     </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/resend_email"
+                        style="@style/SecondaryButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:onClick="@{()-> presenter.onResendEmailTwoFactorClick()}"
+                        android:text="@string/resend_email_two_factor_code"
+                        app:layout_constraintTop_toBottomOf="@id/email_two_factor"/>
                 </androidx.constraintlayout.widget.ConstraintLayout>
 
 

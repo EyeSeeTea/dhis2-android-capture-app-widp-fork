@@ -226,6 +226,11 @@ class D2ErrorUtils(
                 context.getString(
                     R.string.incorrect_two_factor_code_email
                 )
+
+            D2ErrorCode.TWO_FACTOR_MANY_SEND_ATTEMPTS->
+                context.getString(
+                    R.string.two_factor_code_many_send_attemps
+                )
         }
     }
 

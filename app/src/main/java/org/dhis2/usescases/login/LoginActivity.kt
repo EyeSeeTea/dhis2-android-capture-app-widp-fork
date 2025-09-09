@@ -148,7 +148,12 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
                         EXTRA_ACCOUNT_DISABLED,
                         true,
                     )
-                    OpenIdSession.LogOutReason.UNAUTHORIZED ->  putBoolean(EXTRA_SESSION_EXPIRED, true)
+
+                    OpenIdSession.LogOutReason.UNAUTHORIZED -> putBoolean(
+                        EXTRA_SESSION_EXPIRED,
+                        true
+                    )
+
                     null -> {
                         // Nothing to do in this case
                     }
@@ -222,6 +227,8 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
         presenter.emailTwoFactorCodeVisible.observe(this) { this.setEmailTwoFactorCodeVisibility(it) }
 
+        presenter.emailTwoFactorCodeEnable.observe(this) { this.setEmailTwoFactorCodeEnable(it) }
+
         presenter.isTestingEnvironment.observe(
             this,
         ) { testingEnvironment ->
@@ -260,7 +267,9 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
         binding.clearPassButton.setOnClickListener { binding.userPassEdit.text = null }
         binding.clearUserNameButton.setOnClickListener { binding.userNameEdit.text = null }
         binding.clearUrl.setOnClickListener { binding.serverUrlEdit.text = null }
-        binding.clearTotpTwoFactorCodeButton.setOnClickListener { binding.totpTwoFactorCodeEdit.text = null }
+        binding.clearTotpTwoFactorCodeButton.setOnClickListener {
+            binding.totpTwoFactorCodeEdit.text = null
+        }
 
         presenter.loginProgressVisible.observe(this) { show ->
             showLoginProgress(show, getString(R.string.authenticating))
@@ -305,7 +314,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
     private fun checkUrl(urlString: String): Boolean {
         return URLUtil.isValidUrl(urlString) &&
-            Patterns.WEB_URL.matcher(urlString).matches() && urlString.toHttpUrlOrNull() != null
+                Patterns.WEB_URL.matcher(urlString).matches() && urlString.toHttpUrlOrNull() != null
     }
 
     override fun onPause() {
@@ -361,7 +370,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
     }
 
     fun setTotpTwoFactorCodeVisibility(isVisible: Boolean) {
-        if (isVisible){
+        if (isVisible) {
             binding.totpTwoFactorContainer.visibility = View.VISIBLE
         } else {
             binding.totpTwoFactorContainer.visibility = View.GONE
@@ -369,11 +378,15 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
     }
 
     fun setEmailTwoFactorCodeVisibility(isVisible: Boolean) {
-        if (isVisible){
+        if (isVisible) {
             binding.emailTwoFactorContainer.visibility = View.VISIBLE
         } else {
             binding.emailTwoFactorContainer.visibility = View.GONE
         }
+    }
+
+    fun setEmailTwoFactorCodeEnable(enable: Boolean) {
+        binding.resendEmail.isEnabled = enable
     }
 
     private fun showLoginProgress(showLogin: Boolean, message: String? = null) {

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.dhis2.R
 import org.dhis2.commons.Constants.PREFS_URLS
@@ -92,6 +93,9 @@ class LoginViewModel(
 
     private val _emailTwoFactorCodeVisible = MutableLiveData(false)
     val emailTwoFactorCodeVisible: LiveData<Boolean> = _emailTwoFactorCodeVisible
+
+    private val _emailTwoFactorCodeEnable = MutableLiveData(false)
+    val emailTwoFactorCodeEnable: LiveData<Boolean> = _emailTwoFactorCodeEnable
 
     init {
         this.userManager?.let {
@@ -199,10 +203,10 @@ class LoginViewModel(
     fun checkBiometricVisibility() {
         _canLoginWithBiometrics.value =
             biometricController.hasBiometric() &&
-            userManager?.d2?.userModule()?.accountManager()?.getAccounts()?.count() == 1 &&
-            preferenceProvider.getString(SECURE_SERVER_URL)
-                ?.let { it == serverUrl.value } ?: false &&
-            preferenceProvider.contains(SECURE_PASS)
+                    userManager?.d2?.userModule()?.accountManager()?.getAccounts()?.count() == 1 &&
+                    preferenceProvider.getString(SECURE_SERVER_URL)
+                        ?.let { it == serverUrl.value } ?: false &&
+                    preferenceProvider.contains(SECURE_PASS)
     }
 
     fun onLoginButtonClick() {
@@ -378,8 +382,8 @@ class LoginViewModel(
                 _totpTwoFactorCodeVisible.postValue(true)
             } else if (isEmailTwoFactoCodeSent(throwable)) {
                 _emailTwoFactorCodeVisible.postValue(true)
-            }
-            else {
+                _emailTwoFactorCodeEnable.postValue(true)
+            } else {
                 view.renderError(throwable)
             }
         }
@@ -499,14 +503,24 @@ class LoginViewModel(
         }
     }
 
-    fun onTotpTwoFactorCodeChanged(totpTwoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
+    fun onTotpTwoFactorCodeChanged(
+        totpTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
         if (password.toString() != this.password.value) {
             this.tpopTwoFactorCode.value = totpTwoFactorCode.toString()
             checkData()
         }
     }
 
-    fun onEmailTwoFactorCodeChanged(emailTwoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
+    fun onEmailTwoFactorCodeChanged(
+        emailTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
         if (password.toString() != this.password.value) {
             this.emailTwoFactorCode.value = emailTwoFactorCode.toString()
             checkData()
@@ -581,6 +595,42 @@ class LoginViewModel(
                 !preferenceProvider.areCredentialsSet() &&
                 hasAccounts.value == false
 
+
+    fun onResendEmailTwoFactorClick() {
+        disableResend30seconds()
+        disposable.add(
+            Observable.just(view.initLogin())
+                .flatMap { userManager ->
+                    this.userManager = userManager
+                    userManager.logIn(
+                        userName.value!!.trim { it <= ' ' },
+                        password.value!!,
+                        serverUrl.value!!,
+                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value,
+                    )
+                }
+                .subscribeOn(schedulers.io())
+                .observeOn(schedulers.ui())
+                .subscribe(
+                    {
+                        Timber.d("Email with two factor code resent")
+                    },
+                    {
+                        handleError(it)
+                    },
+                ),
+        )
+    }
+
+    private fun disableResend30seconds() {
+        _emailTwoFactorCodeEnable.postValue(false)
+
+        //enable after 30 seconds
+        viewModelScope.launch {
+            delay(30000)
+            _emailTwoFactorCodeEnable.postValue(true)
+        }
+    }
 
     private fun isTotpTwoFactorCodeError(error: Throwable): Boolean =
         error is D2Error && (error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE ||
