@@ -68,8 +68,7 @@ class LoginViewModel(
     val serverUrl = MutableLiveData<String>()
     val userName = MutableLiveData<String>()
     val password = MutableLiveData<String>()
-    val tpopTwoFactorCode = MutableLiveData<String>()
-    val emailTwoFactorCode = MutableLiveData<String>()
+
     val isDataComplete = MutableLiveData<Boolean>()
     val isTestingEnvironment = MutableLiveData<Trio<String, String, String>>()
     private var testingCredentials: List<TestingCredential> = emptyList()
@@ -88,14 +87,24 @@ class LoginViewModel(
     private val _autoCompleteData = MutableLiveData<Pair<List<String>, List<String>>>()
     val autoCompleteData: LiveData<Pair<List<String>, List<String>>> = _autoCompleteData
 
+    val tpopTwoFactorCode = MutableLiveData<String>()
+    val emailTwoFactorCode = MutableLiveData<String>()
+    val smsTwoFactorCode = MutableLiveData<String>()
+
     private val _totpTwoFactorCodeVisible = MutableLiveData(false)
     val totpTwoFactorCodeVisible: LiveData<Boolean> = _totpTwoFactorCodeVisible
 
     private val _emailTwoFactorCodeVisible = MutableLiveData(false)
     val emailTwoFactorCodeVisible: LiveData<Boolean> = _emailTwoFactorCodeVisible
 
-    private val _emailTwoFactorCodeEnable = MutableLiveData(false)
-    val emailTwoFactorCodeEnable: LiveData<Boolean> = _emailTwoFactorCodeEnable
+    private val _emailTwoFactorResendEnable = MutableLiveData(false)
+    val emailTwoFactorResendEnable: LiveData<Boolean> = _emailTwoFactorResendEnable
+
+    private val _smsTwoFactorCodeVisible = MutableLiveData(false)
+    val smsTwoFactorCodeVisible: LiveData<Boolean> = _smsTwoFactorCodeVisible
+
+    private val _smsTwoFactorResendEnable = MutableLiveData(false)
+    val smsTwoFactorResendEnable: LiveData<Boolean> = _smsTwoFactorResendEnable
 
     init {
         this.userManager?.let {
@@ -231,7 +240,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value,
+                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value ?:smsTwoFactorCode.value,
                     )
                         .map {
                             run {
@@ -382,7 +391,10 @@ class LoginViewModel(
                 _totpTwoFactorCodeVisible.postValue(true)
             } else if (isEmailTwoFactoCodeSent(throwable)) {
                 _emailTwoFactorCodeVisible.postValue(true)
-                _emailTwoFactorCodeEnable.postValue(true)
+                _emailTwoFactorResendEnable.postValue(true)
+            } else if (isSMSTwoFactoCodeSent(throwable)) {
+                _smsTwoFactorCodeVisible.postValue(true)
+                _smsTwoFactorResendEnable.postValue(true)
             } else {
                 view.renderError(throwable)
             }
@@ -509,7 +521,7 @@ class LoginViewModel(
         before: Int,
         count: Int
     ) {
-        if (password.toString() != this.password.value) {
+        if (tpopTwoFactorCode.toString() != this.tpopTwoFactorCode.value) {
             this.tpopTwoFactorCode.value = totpTwoFactorCode.toString()
             checkData()
         }
@@ -521,7 +533,19 @@ class LoginViewModel(
         before: Int,
         count: Int
     ) {
-        if (password.toString() != this.password.value) {
+        if (emailTwoFactorCode.toString() != this.emailTwoFactorCode.value) {
+            this.emailTwoFactorCode.value = emailTwoFactorCode.toString()
+            checkData()
+        }
+    }
+
+    fun onSMSTwoFactorCodeChanged(
+        smsTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (smsTwoFactorCode.toString() != this.smsTwoFactorCode.value) {
             this.emailTwoFactorCode.value = emailTwoFactorCode.toString()
             checkData()
         }
@@ -595,9 +619,10 @@ class LoginViewModel(
                 !preferenceProvider.areCredentialsSet() &&
                 hasAccounts.value == false
 
+    // EyeSeeTea customization - two factor authentication
 
     fun onResendEmailTwoFactorClick() {
-        disableResend30seconds()
+        disableResendEmail30seconds()
         disposable.add(
             Observable.just(view.initLogin())
                 .flatMap { userManager ->
@@ -622,13 +647,49 @@ class LoginViewModel(
         )
     }
 
-    private fun disableResend30seconds() {
-        _emailTwoFactorCodeEnable.postValue(false)
+    fun onResendSMSTwoFactorClick() {
+        disableResendSMS30seconds()
+        disposable.add(
+            Observable.just(view.initLogin())
+                .flatMap { userManager ->
+                    this.userManager = userManager
+                    userManager.logIn(
+                        userName.value!!.trim { it <= ' ' },
+                        password.value!!,
+                        serverUrl.value!!,
+                        tpopTwoFactorCode.value ?: emailTwoFactorCode.value,
+                    )
+                }
+                .subscribeOn(schedulers.io())
+                .observeOn(schedulers.ui())
+                .subscribe(
+                    {
+                        Timber.d("Email with two factor code resent")
+                    },
+                    {
+                        handleError(it)
+                    },
+                ),
+        )
+    }
+
+    private fun disableResendEmail30seconds() {
+        _emailTwoFactorResendEnable.postValue(false)
 
         //enable after 30 seconds
         viewModelScope.launch {
             delay(30000)
-            _emailTwoFactorCodeEnable.postValue(true)
+            _emailTwoFactorResendEnable.postValue(true)
+        }
+    }
+
+    private fun disableResendSMS30seconds() {
+        _smsTwoFactorResendEnable.postValue(false)
+
+        //enable after 30 seconds
+        viewModelScope.launch {
+            delay(30000)
+            _smsTwoFactorResendEnable.postValue(true)
         }
     }
 
@@ -638,4 +699,7 @@ class LoginViewModel(
 
     private fun isEmailTwoFactoCodeSent(error: Throwable): Boolean =
         error is D2Error && (error.errorCode() == D2ErrorCode.EMAIL_TWO_FACTOR_CODE_SENT)
+
+    private fun isSMSTwoFactoCodeSent(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.SMS_TWO_FACTOR_CODE_SENT)
 }

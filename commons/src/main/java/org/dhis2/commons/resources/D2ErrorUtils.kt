@@ -231,6 +231,16 @@ class D2ErrorUtils(
                 context.getString(
                     R.string.two_factor_code_many_send_attemps
                 )
+
+            D2ErrorCode.SMS_TWO_FACTOR_CODE_SENT->
+                context.getString(
+                    R.string.sms_two_factor_code_sent
+                )
+
+            D2ErrorCode.INCORRECT_TWO_FACTOR_CODE_SMS->
+                context.getString(
+                    R.string.incorrect_two_factor_code_sms
+                )
         }
     }
 

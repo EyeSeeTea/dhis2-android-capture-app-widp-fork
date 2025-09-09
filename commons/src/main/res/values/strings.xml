@@ -330,6 +330,8 @@
     <string name="incorrect_two_factor_code">Incorrect two factor code</string>
     <string name="incorrect_two_factor_code_email">Incorrect authentication code</string>
     <string name="email_two_factor_code_sent">Email with two factor code sent</string>
+    <string name="incorrect_two_factor_code_sms">Incorrect authentication code</string>
+    <string name="sms_two_factor_code_sent">Email with two factor code sent</string>
     <string name="two_factor_code_many_send_attemps">Many send attempts. Contact your system administrator.</string>
 
     <string name="sync_retry">Retry sync</string>
