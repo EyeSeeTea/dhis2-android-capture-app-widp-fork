@@ -55,7 +55,13 @@
     <string name="url_hint">Server url</string>
     <string name="user_hint">Username</string>
     <string name="password_hint">Password</string>
-    <string name="two_factor_code_hint">Two factor code</string>
+    <string name="totp_two_factor_code_hint">Authenticator app code</string>
+    <string name="totp_two_factor_code_helper_text">Enter the code from your authenticator app</string>
+    <string name="email_two_factor_code_hint">Email code</string>
+    <string name="email_two_factor_code_helper_text">Enter the code sent to your email</string>
+    <string name="sms_two_factor_code_hint">Email code</string>
+    <string name="sms_two_factor_code_helper_text">Enter the code sent to your phone</string>
+    <string name="resend_email_two_factor_code">Resend Code</string>
     <string name="log_in_button">Log In</string>
     <string name="unlock_button">Unlock session</string>
     <string name="syncing_configuration">Syncing your Configuration</string>
@@ -973,7 +979,6 @@
     <string name="optional">Optional</string>
     <string name="database_export_downloaded">Database downloaded</string>
     <string name="importing_database">Importing database</string>
-    <string name="re_open_to_edit">Re-open form to edit</string>
     <string name="empty_search_attributes_message">There are no search fields configured to use.\nPlease contact your admin.</string>
     <string name="show_more">Show more</string>
     <string name="show_less">Show less</string>
@@ -995,6 +1000,9 @@
     <string name="successfully_transferred">Successfully transferred</string>
     <string name="event_cancelled">%1$s cancelled</string>
     <string name="due_date_updated">Due date updated</string>
+    <string name="complete_enrollment_label">Complete %s</string>
+    <string name="deactivate_enrollment_label">Deactivate %s</string>
+    <string name="reopen_enrollment_label">Re-open %s</string>
 
     <!--EyeSeeTea-->
     <string name="change_server_url">Change server URL</string>

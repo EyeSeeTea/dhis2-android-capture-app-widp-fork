@@ -1,7 +1,5 @@
 package org.dhis2.data.notifications
 
-import NotificationsApi
-import UserGroupsApi
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -9,9 +7,13 @@ import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.commons.prefs.Preference
 import org.dhis2.usescases.notifications.domain.Notification
 import org.dhis2.usescases.notifications.domain.NotificationRepository
+import org.dhis2.usescases.notifications.domain.Permissions
+import org.dhis2.usescases.notifications.domain.ReadBy
+import org.dhis2.usescases.notifications.domain.Recipients
 import org.dhis2.usescases.notifications.domain.Ref
 import org.dhis2.usescases.notifications.domain.UserGroups
 import org.hisp.dhis.android.core.D2
+import org.hisp.dhis.android.core.common.BaseIdentifiableObject
 import timber.log.Timber
 
 class NotificationD2Repository(
@@ -64,7 +66,9 @@ class NotificationD2Repository(
                 }
             }
 
-            notificationsApi.postData(notifications)
+            val notificationsDTO = notifications.map { mapNotificationDTOs(it) }
+
+            notificationsApi.postData(notificationsDTO)
 
             saveUserNotificationsInCache(notifications)
 
@@ -77,7 +81,11 @@ class NotificationD2Repository(
 
     private suspend fun getAllNotificationsFromRemote(): List<Notification> {
         try {
-            return notificationsApi.getData()
+            val notificationsDTO = notificationsApi.getData()
+
+            val notifications = notificationsDTO.map { mapNotification(it) }
+
+            return notifications
         } catch (e: Exception) {
             Timber.e("Error getting notifications: $e")
             return emptyList()
@@ -98,7 +106,12 @@ class NotificationD2Repository(
 
     private suspend fun getUserGroups(): UserGroups {
         try {
-            return userGroupsApi.getData()
+            val userGroupsDTO =
+                userGroupsApi.getData(d2.userModule().user().blockingGet()!!.uid())
+
+            val userGroups = mapUserGroups(userGroupsDTO)
+
+            return userGroups
         } catch (e: Exception) {
             Timber.e("Error getting userGroups: $e")
             return UserGroups(listOf())
@@ -138,6 +151,88 @@ class NotificationD2Repository(
         return notification.recipients.wildcard.lowercase() == "Android".lowercase() ||
                 notification.recipients.wildcard == "" ||
                 notification.recipients.wildcard.lowercase() == "BOTH".lowercase()
+    }
+
+    private fun mapNotification(notificationDTO: NotificationDTO): Notification {
+        return Notification(
+            content = notificationDTO.content,
+            createdAt = BaseIdentifiableObject.parseDate(notificationDTO.createdAt),
+            id = notificationDTO.id,
+            readBy = notificationDTO.readBy.map {
+                ReadBy(
+                    BaseIdentifiableObject.parseDate(it.date),
+                    it.id,
+                    it.name
+                )
+            },
+            recipients = Recipients(
+                userGroups = notificationDTO.recipients.userGroups.map { Ref(it.id, it.name) },
+                users = notificationDTO.recipients.users.map { Ref(it.id, it.name) },
+                wildcard = notificationDTO.recipients.wildcard
+            ),
+            permissions = Permissions(
+                publicAccess = notificationDTO.permissions?.publicAccess ?: "",
+                userAccesses = notificationDTO.permissions?.userAccesses?.map {
+                    org.dhis2.usescases.notifications.domain.UserAccesses(
+                        it.access,
+                        it.id,
+                        it.name
+                    )
+                } ?: listOf(),
+                userGroupAccesses = notificationDTO.permissions?.userGroupAccesses?.map {
+                    org.dhis2.usescases.notifications.domain.UserGroupAccesses(
+                        it.access,
+                        it.id,
+                        it.name
+                    )
+                } ?: listOf()
+            ),
+            translations = notificationDTO.translations
+        )
+    }
+
+    private fun mapNotificationDTOs(notification: Notification): NotificationDTO {
+        return NotificationDTO(
+            id = notification.id,
+            content = notification.content,
+            createdAt = BaseIdentifiableObject.dateToDateStr(notification.createdAt),
+            readBy = notification.readBy.map {
+                ReadByDTO(
+                    BaseIdentifiableObject.dateToDateStr(it.date),
+                    it.id,
+                    it.name
+                )
+            },
+            recipients = RecipientsDTO(
+                userGroups = notification.recipients.userGroups.map { RefDTO(it.id, it.name) },
+                users = notification.recipients.users.map { RefDTO(it.id, it.name) },
+                wildcard = notification.recipients.wildcard
+            ),
+            permissions = PermissionsDTO(
+                publicAccess = notification.permissions?.publicAccess ?: "",
+                userAccesses = notification.permissions?.userAccesses?.map {
+                    UserAccessesDTO(
+                        it.access,
+                        it.id,
+                        it.name
+                    )
+                } ?: listOf(),
+                userGroupAccesses = notification.permissions?.userGroupAccesses?.map {
+                    UserGroupAccessesDTO(
+                        it.access,
+                        it.id,
+                        it.name
+                    )
+                } ?: listOf()
+            ),
+            translations = notification.translations
+        )
+    }
+
+    private fun mapUserGroups(userGroupsDTO: UserGroupsDTO): UserGroups {
+        return UserGroups(
+            userGroups = userGroupsDTO.userGroups.map { Ref(it.id, it.name) }
+        )
     }
 }
 

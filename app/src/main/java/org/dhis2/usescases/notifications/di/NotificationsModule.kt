@@ -1,12 +1,12 @@
 package org.dhis2.usescases.notifications.di
 
-import NotificationsApi
-import UserGroupsApi
 import dagger.Module
 import dagger.Provides
 import org.dhis2.commons.prefs.BasicPreferenceProvider
 import org.dhis2.data.notifications.NotificationD2Repository
+import org.dhis2.data.notifications.NotificationsApi
 import org.dhis2.data.notifications.UserD2Repository
+import org.dhis2.data.notifications.UserGroupsApi
 import org.dhis2.usescases.notifications.domain.GetNotifications
 import org.dhis2.usescases.notifications.domain.MarkNotificationAsRead
 import org.dhis2.usescases.notifications.domain.NotificationRepository

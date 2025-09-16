@@ -93,3 +93,5 @@ lint/tmp/
 /*.secrets.yml
 /gradle.deps
 .kotlin/
+__pycache__/
+*.pyc
