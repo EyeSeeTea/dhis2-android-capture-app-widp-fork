@@ -162,7 +162,6 @@
                     android:layout_height="wrap_content"
                     app:layout_constraintTop_toBottomOf="@id/userNameContainer">
 
-
                     <ImageView
                         android:id="@+id/passIcon"
                         android:layout_width="wrap_content"
@@ -212,58 +211,186 @@
                 </androidx.constraintlayout.widget.ConstraintLayout>
 
                 <androidx.constraintlayout.widget.ConstraintLayout
-                    android:id="@+id/twoFactoContainer"
+                    android:id="@+id/totpTwoFactorContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:layout_constraintTop_toBottomOf="@id/passContainer"
                     android:visibility="gone">
 
-
                     <ImageView
-                        android:id="@+id/twoFactorCodeIcon"
+                        android:id="@+id/totpTwoFactorCodeIcon"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        app:layout_constraintBottom_toBottomOf="@id/user_two_factor"
+                        app:layout_constraintBottom_toBottomOf="@id/totp_two_factor"
                         app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="@id/user_two_factor"
+                        app:layout_constraintTop_toTopOf="@id/totp_two_factor"
                         app:srcCompat="@drawable/ic_i_block" />
 
                     <ImageButton
-                        android:id="@+id/clearTwoFactoButton"
+                        android:id="@+id/clearTotpTwoFactorCodeButton"
                         style="@style/ActionIconNoPadding"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="@android:color/transparent"
-                        app:layout_constraintBottom_toBottomOf="@id/user_two_factor"
+                        app:layout_constraintBottom_toBottomOf="@id/totp_two_factor"
                         app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintTop_toTopOf="@id/user_two_factor"
+                        app:layout_constraintTop_toTopOf="@id/totp_two_factor"
                         app:srcCompat="@drawable/ic_close" />
 
                     <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/user_two_factor"
+                        android:id="@+id/totp_two_factor"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_centerInParent="true"
                         android:layout_marginStart="12dp"
                         android:layout_marginEnd="12dp"
-                        android:hint="@string/two_factor_code_hint"
+                        android:hint="@string/totp_two_factor_code_hint"
+                        app:helperText="@string/totp_two_factor_code_helper_text"
                         android:textColorHint="@color/text_black_808"
                         android:theme="@style/loginInputText"
-                        app:layout_constraintEnd_toStartOf="@id/clearTwoFactoButton"
-                        app:layout_constraintStart_toEndOf="@id/twoFactorCodeIcon"
+                        app:layout_constraintEnd_toStartOf="@id/clearTotpTwoFactorCodeButton"
+                        app:layout_constraintStart_toEndOf="@id/totpTwoFactorCodeIcon"
                         app:layout_constraintTop_toTopOf="parent">
 
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/user_two_factor_code_edit"
+                            android:id="@+id/totp_two_factor_code_edit"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:imeOptions="actionDone"
                             android:inputType="text"
-                            android:onTextChanged="@{presenter::onTwoFactorCodeChanged}"
+                            android:onTextChanged="@{presenter::onTotpTwoFactorCodeChanged}"
                             android:textColor="@color/text_black_333"
                             android:textSize="17sp" />
 
                     </com.google.android.material.textfield.TextInputLayout>
+                </androidx.constraintlayout.widget.ConstraintLayout>
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/emailTwoFactorContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintTop_toBottomOf="@id/totpTwoFactorContainer"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/emailTwoFactorCodeIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintBottom_toBottomOf="@id/email_two_factor"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/email_two_factor"
+                        app:srcCompat="@drawable/ic_i_block" />
+
+                    <ImageButton
+                        android:id="@+id/clearEmailTwoFactorCodeButton"
+                        style="@style/ActionIconNoPadding"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@android:color/transparent"
+                        app:layout_constraintBottom_toBottomOf="@id/email_two_factor"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/email_two_factor"
+                        app:srcCompat="@drawable/ic_close" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/email_two_factor"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_centerInParent="true"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="12dp"
+                        android:hint="@string/email_two_factor_code_hint"
+                        app:helperText="@string/email_two_factor_code_helper_text"
+                        android:textColorHint="@color/text_black_808"
+                        android:theme="@style/loginInputText"
+                        app:layout_constraintEnd_toStartOf="@id/clearEmailTwoFactorCodeButton"
+                        app:layout_constraintStart_toEndOf="@id/emailTwoFactorCodeIcon"
+                        app:layout_constraintTop_toTopOf="parent">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/email_two_factor_code_edit"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:imeOptions="actionDone"
+                            android:inputType="text"
+                            android:onTextChanged="@{presenter::onEmailTwoFactorCodeChanged}"
+                            android:textColor="@color/text_black_333"
+                            android:textSize="17sp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/resend_email"
+                        style="@style/SecondaryButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:onClick="@{()-> presenter.onResendEmailTwoFactorClick()}"
+                        android:text="@string/resend_email_two_factor_code"
+                        app:layout_constraintTop_toBottomOf="@id/email_two_factor"/>
+                </androidx.constraintlayout.widget.ConstraintLayout>
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/smsTwoFactorContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintTop_toBottomOf="@id/emailTwoFactorContainer"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/smsTwoFactorCodeIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintBottom_toBottomOf="@id/sms_two_factor"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/sms_two_factor"
+                        app:srcCompat="@drawable/ic_i_block" />
+
+                    <ImageButton
+                        android:id="@+id/clearSmsTwoFactorCodeButton"
+                        style="@style/ActionIconNoPadding"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@android:color/transparent"
+                        app:layout_constraintBottom_toBottomOf="@id/sms_two_factor"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/sms_two_factor"
+                        app:srcCompat="@drawable/ic_close" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/sms_two_factor"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_centerInParent="true"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="12dp"
+                        android:hint="@string/sms_two_factor_code_hint"
+                        app:helperText="@string/sms_two_factor_code_helper_text"
+                        android:textColorHint="@color/text_black_808"
+                        android:theme="@style/loginInputText"
+                        app:layout_constraintEnd_toStartOf="@id/clearSmsTwoFactorCodeButton"
+                        app:layout_constraintStart_toEndOf="@id/smsTwoFactorCodeIcon"
+                        app:layout_constraintTop_toTopOf="parent">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/sms_two_factor_code_edit"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:imeOptions="actionDone"
+                            android:inputType="text"
+                            android:onTextChanged="@{presenter::onSMSTwoFactorCodeChanged}"
+                            android:textColor="@color/text_black_333"
+                            android:textSize="17sp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/resend_sms"
+                        style="@style/SecondaryButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:onClick="@{()-> presenter.onResendSMSTwoFactorClick()}"
+                        android:text="@string/resend_email_two_factor_code"
+                        app:layout_constraintTop_toBottomOf="@id/sms_two_factor"/>
                 </androidx.constraintlayout.widget.ConstraintLayout>
 
                 <TextView
@@ -278,7 +405,7 @@
                     android:textSize="@dimen/textSize_12"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/twoFactoContainer" />
+                    app:layout_constraintTop_toBottomOf="@id/smsTwoFactorContainer" />
 
             </androidx.constraintlayout.widget.ConstraintLayout>
 
