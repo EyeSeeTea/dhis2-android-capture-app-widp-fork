@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.dhis2.R
 import org.dhis2.commons.Constants.PREFS_URLS
@@ -47,6 +48,15 @@ import java.io.File
 
 const val VERSION = "version"
 
+sealed class TwoFactorVerificationState(val code: String) {
+    data class TotpVerification(private val toptCode: String) : TwoFactorVerificationState(toptCode)
+    data class EmailVerification(private val emailCode: String, val resendEnabled: Boolean) :
+        TwoFactorVerificationState(emailCode)
+
+    data class SmsVerification(private val smsCode: String, val resendEnabled: Boolean) :
+        TwoFactorVerificationState(smsCode)
+}
+
 class LoginViewModel(
     private val view: LoginContracts.View,
     private val preferenceProvider: PreferenceProvider,
@@ -67,7 +77,7 @@ class LoginViewModel(
     val serverUrl = MutableLiveData<String>()
     val userName = MutableLiveData<String>()
     val password = MutableLiveData<String>()
-    val twoFactorCode = MutableLiveData<String>()
+
     val isDataComplete = MutableLiveData<Boolean>()
     val isTestingEnvironment = MutableLiveData<Trio<String, String, String>>()
     private var testingCredentials: List<TestingCredential> = emptyList()
@@ -86,8 +96,9 @@ class LoginViewModel(
     private val _autoCompleteData = MutableLiveData<Pair<List<String>, List<String>>>()
     val autoCompleteData: LiveData<Pair<List<String>, List<String>>> = _autoCompleteData
 
-    private val _twoFactorCodeVisible = MutableLiveData(false)
-    val twoFactorCodeVisible: LiveData<Boolean> = _twoFactorCodeVisible
+    private val _twoFactorVerificationState = MutableLiveData<TwoFactorVerificationState?>()
+    val twoFactorVerificationState: LiveData<TwoFactorVerificationState?> =
+        _twoFactorVerificationState
 
     init {
         this.userManager?.let {
@@ -195,10 +206,10 @@ class LoginViewModel(
     fun checkBiometricVisibility() {
         _canLoginWithBiometrics.value =
             biometricController.hasBiometric() &&
-            userManager?.d2?.userModule()?.accountManager()?.getAccounts()?.count() == 1 &&
-            preferenceProvider.getString(SECURE_SERVER_URL)
-                ?.let { it == serverUrl.value } ?: false &&
-            preferenceProvider.contains(SECURE_PASS)
+                    userManager?.d2?.userModule()?.accountManager()?.getAccounts()?.count() == 1 &&
+                    preferenceProvider.getString(SECURE_SERVER_URL)
+                        ?.let { it == serverUrl.value } ?: false &&
+                    preferenceProvider.contains(SECURE_PASS)
     }
 
     fun onLoginButtonClick() {
@@ -223,7 +234,7 @@ class LoginViewModel(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        twoFactorCode.value,
+                        twoFactorVerificationState.value?.code
                     )
                         .map {
                             run {
@@ -370,8 +381,24 @@ class LoginViewModel(
             userManager?.d2?.userModule()?.blockingLogOut()
             logIn()
         } else {
-            if (throwable is D2Error && throwable.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE && _twoFactorCodeVisible.value == false) {
-                _twoFactorCodeVisible.postValue(true)
+            if (isTotpTwoFactorCodeError(throwable) && _twoFactorVerificationState.value == null) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.TotpVerification(toptCode = "")
+                )
+            } else if (isEmailTwoFactoCodeSent(throwable)) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.EmailVerification(
+                        emailCode = "",
+                        resendEnabled = true
+                    )
+                )
+            } else if (isSMSTwoFactoCodeSent(throwable)) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.SmsVerification(
+                        smsCode = "",
+                        resendEnabled = true
+                    )
+                )
             } else {
                 view.renderError(throwable)
             }
@@ -492,13 +519,6 @@ class LoginViewModel(
         }
     }
 
-    fun onTwoFactorCodeChanged(twoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
-        if (password.toString() != this.password.value) {
-            this.twoFactorCode.value = twoFactorCode.toString()
-            checkData()
-        }
-    }
-
     private fun checkData() {
         val newValue = !serverUrl.value.isNullOrEmpty() &&
                 !userName.value.isNullOrEmpty() &&
@@ -566,4 +586,162 @@ class LoginViewModel(
         biometricController.hasBiometric() &&
                 !preferenceProvider.areCredentialsSet() &&
                 hasAccounts.value == false
+
+    // EyeSeeTea customization - two factor authentication
+    fun onTotpTwoFactorCodeChanged(
+        totpTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (totpTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.TotpVerification(totpTwoFactorCode.toString())
+            )
+
+            checkData()
+        }
+    }
+
+    fun onEmailTwoFactorCodeChanged(
+        emailTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (emailTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.EmailVerification(
+                    emailCode = emailTwoFactorCode.toString(),
+                    resendEnabled = (_twoFactorVerificationState.value as TwoFactorVerificationState.EmailVerification).resendEnabled
+                )
+            )
+
+            checkData()
+        }
+    }
+
+    fun onSMSTwoFactorCodeChanged(
+        smsTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (smsTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.SmsVerification(
+                    smsCode = smsTwoFactorCode.toString(),
+                    resendEnabled = (_twoFactorVerificationState.value as TwoFactorVerificationState.SmsVerification).resendEnabled
+                )
+            )
+
+            checkData()
+        }
+    }
+
+    fun onResendEmailTwoFactorClick() {
+        disableResendEmail30seconds()
+        disposable.add(
+            Observable.just(view.initLogin())
+                .flatMap { userManager ->
+                    this.userManager = userManager
+                    userManager.logIn(
+                        userName.value!!.trim { it <= ' ' },
+                        password.value!!,
+                        serverUrl.value!!,
+                        _twoFactorVerificationState.value?.code,
+                    )
+                }
+                .subscribeOn(schedulers.io())
+                .observeOn(schedulers.ui())
+                .subscribe(
+                    {
+                        Timber.d("Email with two factor code resent")
+                    },
+                    {
+                        handleError(it)
+                    },
+                ),
+        )
+    }
+
+    fun onResendSMSTwoFactorClick() {
+        disableResendSMS30seconds()
+        disposable.add(
+            Observable.just(view.initLogin())
+                .flatMap { userManager ->
+                    this.userManager = userManager
+                    userManager.logIn(
+                        userName.value!!.trim { it <= ' ' },
+                        password.value!!,
+                        serverUrl.value!!,
+                        _twoFactorVerificationState.value?.code,
+                    )
+                }
+                .subscribeOn(schedulers.io())
+                .observeOn(schedulers.ui())
+                .subscribe(
+                    {
+                        Timber.d("Email with two factor code resent")
+                    },
+                    {
+                        handleError(it)
+                    },
+                ),
+        )
+    }
+
+    private fun disableResendEmail30seconds() {
+        val current = _twoFactorVerificationState.value as TwoFactorVerificationState.EmailVerification
+
+        _twoFactorVerificationState.postValue(
+            TwoFactorVerificationState.EmailVerification(
+                emailCode = current.code,
+                resendEnabled = false
+            )
+        )
+
+        //enable after 30 seconds
+        viewModelScope.launch {
+            delay(30000)
+            _twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.EmailVerification(
+                    emailCode = current.code,
+                    resendEnabled = true
+                )
+            )
+        }
+    }
+
+    private fun disableResendSMS30seconds() {
+        val current = _twoFactorVerificationState.value as TwoFactorVerificationState.SmsVerification
+
+        _twoFactorVerificationState.postValue(
+            TwoFactorVerificationState.SmsVerification(
+                smsCode = current.code,
+                resendEnabled = false
+            )
+        )
+
+        //enable after 30 seconds
+        viewModelScope.launch {
+            delay(30000)
+            _twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.SmsVerification(
+                    smsCode = current.code,
+                    resendEnabled = true
+                )
+            )
+        }
+    }
+
+    private fun isTotpTwoFactorCodeError(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE ||
+                error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE_TOTP)
+
+    private fun isEmailTwoFactoCodeSent(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.EMAIL_TWO_FACTOR_CODE_SENT)
+
+    private fun isSMSTwoFactoCodeSent(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.SMS_TWO_FACTOR_CODE_SENT)
 }

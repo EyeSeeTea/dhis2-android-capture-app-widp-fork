@@ -148,7 +148,12 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
                         EXTRA_ACCOUNT_DISABLED,
                         true,
                     )
-                    OpenIdSession.LogOutReason.UNAUTHORIZED ->  putBoolean(EXTRA_SESSION_EXPIRED, true)
+
+                    OpenIdSession.LogOutReason.UNAUTHORIZED -> putBoolean(
+                        EXTRA_SESSION_EXPIRED,
+                        true
+                    )
+
                     null -> {
                         // Nothing to do in this case
                     }
@@ -218,7 +223,8 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
         presenter.isDataComplete.observe(this) { this.setLoginVisibility(it) }
 
-        presenter.twoFactorCodeVisible.observe(this) { this.setTwoFactorCodeVisibility(it) }
+        // EyeSeeTea customization - 2 factor authentication
+        presenter.twoFactorVerificationState.observe(this) { this.updateTwoFactor(it) }
 
         presenter.isTestingEnvironment.observe(
             this,
@@ -258,7 +264,9 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
         binding.clearPassButton.setOnClickListener { binding.userPassEdit.text = null }
         binding.clearUserNameButton.setOnClickListener { binding.userNameEdit.text = null }
         binding.clearUrl.setOnClickListener { binding.serverUrlEdit.text = null }
-        binding.clearTwoFactoButton.setOnClickListener { binding.userTwoFactorCodeEdit.text = null }
+        binding.clearTotpTwoFactorCodeButton.setOnClickListener {
+            binding.totpTwoFactorCodeEdit.text = null
+        }
 
         presenter.loginProgressVisible.observe(this) { show ->
             showLoginProgress(show, getString(R.string.authenticating))
@@ -303,7 +311,7 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
     private fun checkUrl(urlString: String): Boolean {
         return URLUtil.isValidUrl(urlString) &&
-            Patterns.WEB_URL.matcher(urlString).matches() && urlString.toHttpUrlOrNull() != null
+                Patterns.WEB_URL.matcher(urlString).matches() && urlString.toHttpUrlOrNull() != null
     }
 
     override fun onPause() {
@@ -356,14 +364,6 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
 
     override fun setLoginVisibility(isVisible: Boolean) {
         binding.login.isEnabled = isVisible
-    }
-
-    fun setTwoFactorCodeVisibility(isVisible: Boolean) {
-        if (isVisible){
-            binding.twoFactoContainer.visibility = View.VISIBLE
-        } else {
-            binding.twoFactoContainer.visibility = View.GONE
-        }
     }
 
     private fun showLoginProgress(showLogin: Boolean, message: String? = null) {
@@ -690,5 +690,35 @@ class LoginActivity : ActivityGlobalAbstract(), LoginContracts.View {
             null,
         )
         dialog.show()
+    }
+
+    // EyeSeeTea customization - two factor authentication
+    private fun updateTwoFactor(twoFactorState: TwoFactorVerificationState?) {
+        if (twoFactorState == null){
+            binding.totpTwoFactorContainer.visibility = View.GONE
+            binding.emailTwoFactorContainer.visibility = View.GONE
+            binding.smsTwoFactorContainer.visibility = View.GONE
+            return
+        }
+
+            when (twoFactorState) {
+                is TwoFactorVerificationState.TotpVerification -> {
+                    binding.totpTwoFactorContainer.visibility = View.VISIBLE
+                    binding.emailTwoFactorContainer.visibility = View.GONE
+                    binding.smsTwoFactorContainer.visibility = View.GONE
+                }
+               is  TwoFactorVerificationState.EmailVerification -> {
+                    binding.totpTwoFactorContainer.visibility = View.GONE
+                    binding.emailTwoFactorContainer.visibility = View.VISIBLE
+                    binding.smsTwoFactorContainer.visibility = View.GONE
+                   binding.resendEmail.isEnabled = twoFactorState.resendEnabled
+                }
+                is TwoFactorVerificationState.SmsVerification -> {
+                    binding.totpTwoFactorContainer.visibility = View.GONE
+                    binding.emailTwoFactorContainer.visibility = View.GONE
+                    binding.smsTwoFactorContainer.visibility = View.VISIBLE
+                    binding.resendEmail.isEnabled = twoFactorState.resendEnabled
+                }
+            }
     }
 }
