@@ -9,14 +9,13 @@ import androidx.lifecycle.viewModelScope
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.dhis2.R
 import org.dhis2.commons.Constants.PREFS_URLS
 import org.dhis2.commons.Constants.PREFS_USERS
 import org.dhis2.commons.Constants.USER_TEST_ANDROID
 import org.dhis2.commons.data.tuples.Trio
-import org.dhis2.commons.idlingresource.CountingIdlingResourceSingleton.decrement
-import org.dhis2.commons.idlingresource.CountingIdlingResourceSingleton.increment
 import org.dhis2.commons.network.NetworkUtils
 import org.dhis2.commons.prefs.Preference.Companion.PIN
 import org.dhis2.commons.prefs.Preference.Companion.SESSION_LOCKED
@@ -24,12 +23,12 @@ import org.dhis2.commons.prefs.PreferenceProvider
 import org.dhis2.commons.prefs.SECURE_PASS
 import org.dhis2.commons.prefs.SECURE_SERVER_URL
 import org.dhis2.commons.prefs.SECURE_USER_NAME
-import org.dhis2.commons.reporting.CrashReportController
 import org.dhis2.commons.resources.ResourceManager
 import org.dhis2.commons.schedulers.SchedulerProvider
 import org.dhis2.commons.viewmodel.DispatcherProvider
 import org.dhis2.data.biometric.BiometricController
 import org.dhis2.data.server.UserManager
+import org.dhis2.mobile.commons.reporting.CrashReportController
 import org.dhis2.usescases.main.MainActivity
 import org.dhis2.utils.DEFAULT_URL
 import org.dhis2.utils.TestingCredential
@@ -49,6 +48,15 @@ import java.io.File
 
 const val VERSION = "version"
 
+sealed class TwoFactorVerificationState(val code: String) {
+    data class TotpVerification(private val toptCode: String) : TwoFactorVerificationState(toptCode)
+    data class EmailVerification(private val emailCode: String, val resendEnabled: Boolean) :
+        TwoFactorVerificationState(emailCode)
+
+    data class SmsVerification(private val smsCode: String, val resendEnabled: Boolean) :
+        TwoFactorVerificationState(smsCode)
+}
+
 class LoginViewModel(
     private val view: LoginContracts.View,
     private val preferenceProvider: PreferenceProvider,
@@ -60,6 +68,7 @@ class LoginViewModel(
     private val crashReportController: CrashReportController,
     private val network: NetworkUtils,
     private var userManager: UserManager?,
+    private val repository: LoginRepository,
 ) : ViewModel() {
 
     private val syncIsPerformedInteractor = SyncIsPerformedInteractor(userManager)
@@ -68,10 +77,10 @@ class LoginViewModel(
     val serverUrl = MutableLiveData<String>()
     val userName = MutableLiveData<String>()
     val password = MutableLiveData<String>()
-    val twoFactorCode = MutableLiveData<String>()
+
     val isDataComplete = MutableLiveData<Boolean>()
     val isTestingEnvironment = MutableLiveData<Trio<String, String, String>>()
-    var testingCredentials: MutableMap<String, TestingCredential>? = null
+    private var testingCredentials: List<TestingCredential> = emptyList()
     private val _loginProgressVisible = MutableLiveData(false)
     val loginProgressVisible: LiveData<Boolean> = _loginProgressVisible
 
@@ -84,8 +93,12 @@ class LoginViewModel(
     private val _displayMoreActions = MutableLiveData<Boolean>(true)
     val displayMoreActions: LiveData<Boolean> = _displayMoreActions
 
-    private val _twoFactorCodeVisible = MutableLiveData(false)
-    val twoFactorCodeVisible: LiveData<Boolean> = _twoFactorCodeVisible
+    private val _autoCompleteData = MutableLiveData<Pair<List<String>, List<String>>>()
+    val autoCompleteData: LiveData<Pair<List<String>, List<String>>> = _autoCompleteData
+
+    private val _twoFactorVerificationState = MutableLiveData<TwoFactorVerificationState?>()
+    val twoFactorVerificationState: LiveData<TwoFactorVerificationState?> =
+        _twoFactorVerificationState
 
     init {
         this.userManager?.let {
@@ -129,6 +142,11 @@ class LoginViewModel(
             )
         } ?: setAccountInfo(view.getDefaultServerProtocol(), null)
         displayManageAccount()
+
+        viewModelScope.launch {
+            testingCredentials = repository.getTestingCredentials()
+            loadAutoCompleteData(testingCredentials)
+        }
     }
 
     private fun trackServerVersion() {
@@ -207,16 +225,16 @@ class LoginViewModel(
 
     private fun logIn() {
         _loginProgressVisible.postValue(true)
-        increment()
         disposable.add(
             Observable.just(view.initLogin())
                 .flatMap { userManager ->
+                    LoginIdlingResource.increment()
                     this.userManager = userManager
                     userManager.logIn(
                         userName.value!!.trim { it <= ' ' },
                         password.value!!,
                         serverUrl.value!!,
-                        twoFactorCode.value,
+                        twoFactorVerificationState.value?.code
                     )
                         .map {
                             run {
@@ -228,8 +246,11 @@ class LoginViewModel(
                             }
                         }
                 }
+                .doOnError {
+                    LoginIdlingResource.decrement()
+                }
                 .doOnTerminate {
-                    decrement()
+                    LoginIdlingResource.decrement()
                     _loginProgressVisible.postValue(false)
                 }
                 .subscribeOn(schedulers.io())
@@ -360,8 +381,24 @@ class LoginViewModel(
             userManager?.d2?.userModule()?.blockingLogOut()
             logIn()
         } else {
-            if (throwable is D2Error && throwable.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE && _twoFactorCodeVisible.value == false) {
-                _twoFactorCodeVisible.postValue(true)
+            if (isTotpTwoFactorCodeError(throwable) && _twoFactorVerificationState.value == null) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.TotpVerification(toptCode = "")
+                )
+            } else if (isEmailTwoFactoCodeSent(throwable)) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.EmailVerification(
+                        emailCode = "",
+                        resendEnabled = true
+                    )
+                )
+            } else if (isSMSTwoFactoCodeSent(throwable)) {
+                _twoFactorVerificationState.postValue(
+                    TwoFactorVerificationState.SmsVerification(
+                        smsCode = "",
+                        resendEnabled = true
+                    )
+                )
             } else {
                 view.renderError(throwable)
             }
@@ -386,7 +423,7 @@ class LoginViewModel(
 
     fun authenticateWithBiometric() {
         biometricController.authenticate {
-            password.value = preferenceProvider.getString(SECURE_PASS)
+            password.value = preferenceProvider.getSecureValue(SECURE_PASS)
             logIn()
         }
     }
@@ -400,11 +437,11 @@ class LoginViewModel(
         }
     }
 
-    fun getAutocompleteData(
-        testingCredentials: List<TestingCredential>,
-    ): Pair<MutableList<String>, MutableList<String>> {
-        val urls = preferenceProvider.getSet(PREFS_URLS, emptySet())!!.toMutableList()
-        val users = preferenceProvider.getSet(PREFS_USERS, emptySet())!!.toMutableList()
+    private fun loadAutoCompleteData(testingCredentials: List<TestingCredential>) {
+        val urls =
+            preferenceProvider.getSet(PREFS_URLS, emptySet())?.toMutableList() ?: mutableListOf()
+        val users =
+            preferenceProvider.getSet(PREFS_USERS, emptySet())?.toMutableList() ?: mutableListOf()
 
         urls.let {
             for (testingCredential in testingCredentials) {
@@ -412,19 +449,19 @@ class LoginViewModel(
                     it.add(testingCredential.server_url)
                 }
             }
-        }
 
-        preferenceProvider.setValue(PREFS_URLS, HashSet(urls))
+            preferenceProvider.setValue(PREFS_URLS, HashSet(urls))
+        }
 
         users.let {
             if (!it.contains(USER_TEST_ANDROID)) {
                 it.add(USER_TEST_ANDROID)
             }
+
+            preferenceProvider.setValue(PREFS_USERS, HashSet(users))
         }
 
-        preferenceProvider.setValue(PREFS_USERS, HashSet(users))
-
-        return Pair(urls, users)
+        _autoCompleteData.value = Pair(urls, users)
     }
 
     fun displayManageAccount() {
@@ -482,13 +519,6 @@ class LoginViewModel(
         }
     }
 
-    fun onTwoFactorCodeChanged(twoFactorCode: CharSequence, start: Int, before: Int, count: Int) {
-        if (password.toString() != this.password.value) {
-            this.twoFactorCode.value = twoFactorCode.toString()
-            checkData()
-        }
-    }
-
     private fun checkData() {
         val newValue = !serverUrl.value.isNullOrEmpty() &&
                 !userName.value.isNullOrEmpty() &&
@@ -500,19 +530,12 @@ class LoginViewModel(
     }
 
     private fun checkTestingEnvironment(serverUrl: String) {
-        testingCredentials?.get(serverUrl)?.let { credentials ->
+        testingCredentials.find { it.server_url == serverUrl }?.let { credentials ->
             isTestingEnvironment.value = Trio.create(
                 serverUrl,
                 credentials.user_name,
                 credentials.user_pass,
             )
-        }
-    }
-
-    fun setTestingCredentials(testingCredentials: List<TestingCredential>) {
-        this.testingCredentials = HashMap()
-        for (testingCredential in testingCredentials) {
-            this.testingCredentials!![testingCredential.server_url] = testingCredential
         }
     }
 
@@ -563,4 +586,162 @@ class LoginViewModel(
         biometricController.hasBiometric() &&
                 !preferenceProvider.areCredentialsSet() &&
                 hasAccounts.value == false
+
+    // EyeSeeTea customization - two factor authentication
+    fun onTotpTwoFactorCodeChanged(
+        totpTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (totpTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.TotpVerification(totpTwoFactorCode.toString())
+            )
+
+            checkData()
+        }
+    }
+
+    fun onEmailTwoFactorCodeChanged(
+        emailTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (emailTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.EmailVerification(
+                    emailCode = emailTwoFactorCode.toString(),
+                    resendEnabled = (_twoFactorVerificationState.value as TwoFactorVerificationState.EmailVerification).resendEnabled
+                )
+            )
+
+            checkData()
+        }
+    }
+
+    fun onSMSTwoFactorCodeChanged(
+        smsTwoFactorCode: CharSequence,
+        start: Int,
+        before: Int,
+        count: Int
+    ) {
+        if (smsTwoFactorCode.toString() != this._twoFactorVerificationState.value?.code) {
+            this._twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.SmsVerification(
+                    smsCode = smsTwoFactorCode.toString(),
+                    resendEnabled = (_twoFactorVerificationState.value as TwoFactorVerificationState.SmsVerification).resendEnabled
+                )
+            )
+
+            checkData()
+        }
+    }
+
+    fun onResendEmailTwoFactorClick() {
+        disableResendEmail30seconds()
+        disposable.add(
+            Observable.just(view.initLogin())
+                .flatMap { userManager ->
+                    this.userManager = userManager
+                    userManager.logIn(
+                        userName.value!!.trim { it <= ' ' },
+                        password.value!!,
+                        serverUrl.value!!,
+                        _twoFactorVerificationState.value?.code,
+                    )
+                }
+                .subscribeOn(schedulers.io())
+                .observeOn(schedulers.ui())
+                .subscribe(
+                    {
+                        Timber.d("Email with two factor code resent")
+                    },
+                    {
+                        handleError(it)
+                    },
+                ),
+        )
+    }
+
+    fun onResendSMSTwoFactorClick() {
+        disableResendSMS30seconds()
+        disposable.add(
+            Observable.just(view.initLogin())
+                .flatMap { userManager ->
+                    this.userManager = userManager
+                    userManager.logIn(
+                        userName.value!!.trim { it <= ' ' },
+                        password.value!!,
+                        serverUrl.value!!,
+                        _twoFactorVerificationState.value?.code,
+                    )
+                }
+                .subscribeOn(schedulers.io())
+                .observeOn(schedulers.ui())
+                .subscribe(
+                    {
+                        Timber.d("Email with two factor code resent")
+                    },
+                    {
+                        handleError(it)
+                    },
+                ),
+        )
+    }
+
+    private fun disableResendEmail30seconds() {
+        val current = _twoFactorVerificationState.value as TwoFactorVerificationState.EmailVerification
+
+        _twoFactorVerificationState.postValue(
+            TwoFactorVerificationState.EmailVerification(
+                emailCode = current.code,
+                resendEnabled = false
+            )
+        )
+
+        //enable after 30 seconds
+        viewModelScope.launch {
+            delay(30000)
+            _twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.EmailVerification(
+                    emailCode = current.code,
+                    resendEnabled = true
+                )
+            )
+        }
+    }
+
+    private fun disableResendSMS30seconds() {
+        val current = _twoFactorVerificationState.value as TwoFactorVerificationState.SmsVerification
+
+        _twoFactorVerificationState.postValue(
+            TwoFactorVerificationState.SmsVerification(
+                smsCode = current.code,
+                resendEnabled = false
+            )
+        )
+
+        //enable after 30 seconds
+        viewModelScope.launch {
+            delay(30000)
+            _twoFactorVerificationState.postValue(
+                TwoFactorVerificationState.SmsVerification(
+                    smsCode = current.code,
+                    resendEnabled = true
+                )
+            )
+        }
+    }
+
+    private fun isTotpTwoFactorCodeError(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE ||
+                error.errorCode() == D2ErrorCode.INCORRECT_TWO_FACTOR_CODE_TOTP)
+
+    private fun isEmailTwoFactoCodeSent(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.EMAIL_TWO_FACTOR_CODE_SENT)
+
+    private fun isSMSTwoFactoCodeSent(error: Throwable): Boolean =
+        error is D2Error && (error.errorCode() == D2ErrorCode.SMS_TWO_FACTOR_CODE_SENT)
 }
