@@ -1,8 +1,6 @@
 package org.dhis2.data.notifications
-import org.dhis2.data.notifications.NotificationDTO
-import org.dhis2.data.notifications.UserGroupsDTO
+// EyeSeeTea customization - Notifications system
 import org.hisp.dhis.android.core.arch.api.HttpServiceClient
-import org.hisp.dhis.android.core.user.User
 
 class NotificationsApi (private val client: HttpServiceClient) {
     suspend fun getData(): List<NotificationDTO>{
@@ -11,7 +9,7 @@ class NotificationsApi (private val client: HttpServiceClient) {
         }
     }
 
-    suspend fun postData( notifications:List<NotificationDTO>): User {
+    suspend fun postData( notifications:List<NotificationDTO>) {
         return client.put {
             url("dataStore/notifications/notifications")
             body(notifications)

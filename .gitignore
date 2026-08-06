@@ -89,9 +89,16 @@ lint/tmp/
 .externalNativeBuild
 /app/dhis_keystore.jks
 /app/src/main/res/raw/testing_credentials.json
+/app/src/**/google-services.json
 /venv
 /*.secrets.yml
 /gradle.deps
 .kotlin/
 __pycache__/
 *.pyc
+
+# Claude Code local overrides
+.claude/settings.local.json
+
+# Session journals (local notes, not for upstream)
+.journal/
